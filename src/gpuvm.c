@@ -11,6 +11,9 @@
 unsigned ndevs_g = 0;
 void **devs_g = 0;
 
+int gpuvm_library_exists() {
+	return 1;
+}  // gpuvm_library_exists
 
 int gpuvm_init(unsigned ndevs, void **devs, int flags) {
 	int err;

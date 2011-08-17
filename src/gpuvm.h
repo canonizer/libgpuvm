@@ -59,6 +59,19 @@ enum {
 };
 
 /** 
+		gets whether GPUVM library exists in the system. This is the only method which can be
+		called prior to gpuvm_init()
+		@returns nonzero if the library exists
+		@remarks if the library doesn't exist or can't be found on the target system,
+		typically an error or an exception will be generated, which can be caught and
+		handled. This method is primarily intended to allow NUDA to detect GPUVM library
+		before all devices are initialized. If the library doesn't exist, calling this method
+		will result in a DllNotFoundException (as it is in mono)
+ */
+__attribute__((visibility("default")))
+int gpuvm_library_exists();
+
+/** 
 		initializes GPUVM library, must be called once per process 
 		@param ndevs number of devices to be used in the library
 		@param devs devices to be used in the library. For OpenCL, each pointer must specify a
