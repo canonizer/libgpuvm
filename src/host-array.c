@@ -185,3 +185,20 @@ int host_array_after_kernel(host_array_t *host_array, unsigned idev) {
 	}
 	return 0;
 }  // host_array_after_kernel
+
+int host_array_remove_link(host_array_t *host_array, unsigned idev) {
+	link_t **plink = &host_array->links[idev];
+	if(!*plink)
+		return 0;
+	link_free(*plink);
+	*plink = 0;
+	return 0;
+}  // host_array_remove_link
+
+int host_array_has_links(const host_array_t *host_array) {
+	unsigned idev;
+	for(idev = 0; idev < ndevs_g; idev++)
+		if(host_array->links[idev])
+			return 1;
+	return 0;
+}  // host_array_has_links

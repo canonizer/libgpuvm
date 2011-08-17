@@ -53,7 +53,7 @@ int host_array_find(host_array_t **p, void *hostptr, size_t nbytes);
 /** synchronizes the array (if necessary) so that it is actual on the specified device
 		@param the array to synchronize
 		@param idev the device on which to make the array synchronous
-		@return 0 if successful and a negative error code if not
+		@returns 0 if successful and a negative error code if not
  */
 int host_array_sync_to_device(host_array_t *host_array, unsigned idev);
 
@@ -64,5 +64,18 @@ int host_array_sync_to_device(host_array_t *host_array, unsigned idev);
 		@param idev the device on which the array was used
  */
 int host_array_after_kernel(host_array_t *host_array, unsigned idev);
+
+/** removes the host array link on the specified device. The link removed is freed
+		@param host_array the host array for which to remove the link
+		@param idev the device for which to remove the link
+		@returns 0 if successful and -1 if not
+ */
+int host_array_remove_link(host_array_t  *host_array, unsigned idev);
+
+/** checks whether the array has any links 
+		@param host_array the array to check
+		@returns nonzero if array has a link and 0 if not
+ */
+int host_array_has_links(const host_array_t *host_array);
 
 #endif

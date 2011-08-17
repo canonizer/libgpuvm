@@ -52,7 +52,7 @@ int gpuvm_init(unsigned ndevs, void **devs, int flags) {
 	// TODO: initialize other structures
 	
 	return 0;
-}
+}  // gpuvm_init
 
 int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int flags) {
 
@@ -122,9 +122,14 @@ int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int fl
 	if(sync_unlock())
 		return GPUVM_ERROR;
 	return 0;
-}
+}  // gpuvm_link
 
-int gpuvm_unlink(void *hostptr) {
+int gpuvm_unlink(void *hostptr, unsigned idev) {
+	// check arguments
+	if(idev >= ndevs_g) {
+		fprintf(stderr, "gpuvm_unlink: invalid device number\n");
+		return GPUVM_EARG;
+	}
 	if(!hostptr)
 		return 0;
 
@@ -138,13 +143,18 @@ int gpuvm_unlink(void *hostptr) {
 		sync_unlock();
 		return GPUVM_EHOSTPTR;
 	}
-	host_array_free(host_array);
+	if(err = host_array_remove_link(host_array, idev)) {
+		sync_unlock();
+		return err;
+	}
+	if(!host_array_has_links(host_array))
+		host_array_free(host_array);
 
 	if(sync_unlock())
 		return GPUVM_ERROR;
 
 	return 0;
-}
+}  // gpuvm_unlink
 
 int gpuvm_kernel_begin(void *hostptr, unsigned idev, int flags) {
 	// check arguments
@@ -184,7 +194,7 @@ int gpuvm_kernel_begin(void *hostptr, unsigned idev, int flags) {
 		return GPUVM_ERROR;
 
 	return 0;
-}
+}  // gpuvm_kernel_begin
 
 int gpuvm_kernel_end(void *hostptr, unsigned idev) {
 	// check arguments
@@ -222,4 +232,4 @@ int gpuvm_kernel_end(void *hostptr, unsigned idev) {
 		return GPUVM_ERROR;
 
 	return 0;
-} // gpuvm_after_kernel()
+} // gpuvm__kernel_end

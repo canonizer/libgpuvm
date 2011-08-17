@@ -8,6 +8,9 @@
 /** page size used in the system */
 #define GPUVM_PAGE_SIZE 4096
 
+/** indicates that all devices must be unlinked */
+#define GPUVM_ALL_DEVICES ~0
+
 /** flags specifying device type. Constants of this type must be used directly  */
 enum {
 	/** no device */
@@ -86,13 +89,17 @@ __attribute__((visibility("default")))
 int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int flags);
 
 /** 
-		unlinks an array which was previously linked. If array was previously linked with
-		device buffers on multiple devices, all of them are unlinked
+		unlinks an array which was previously linked, on a single device. If the array is
+		not linked on the specified device, nothing is done and 0 is returned. If the
+		specified device is the last on which the host array is linked, then the host array is
+		removed from monitoring by GPUVM
 		@param hostptr a pointer previously linked with gpuvm_link
-		@returns 0 if successful and error code if not 
+		@param idev the device on which to unlink the buffer, or GPUVM_ALL_DEVICES if the
+		buffer is to be unlinked on all devices
+		@returns 0 if successful and error code if not
  */
 __attribute__((visibility("default")))
-int gpuvm_unlink(void *hostptr);
+int gpuvm_unlink(void *hostptr, unsigned idev);
 
 /** 
 		indicates that the device array corresponding to host array is about to be used in a
