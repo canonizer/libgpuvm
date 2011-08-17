@@ -94,8 +94,7 @@ int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int fl
 		specified device is the last on which the host array is linked, then the host array is
 		removed from monitoring by GPUVM
 		@param hostptr a pointer previously linked with gpuvm_link
-		@param idev the device on which to unlink the buffer, or GPUVM_ALL_DEVICES if the
-		buffer is to be unlinked on all devices
+		@param idev the device on which to unlink the buffer
 		@returns 0 if successful and error code if not
  */
 __attribute__((visibility("default")))
