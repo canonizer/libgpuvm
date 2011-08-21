@@ -11,7 +11,7 @@
 /** indicates that all devices must be unlinked */
 #define GPUVM_ALL_DEVICES ~0
 
-/** flags specifying device type. Constants of this type must be used directly  */
+/** flags specifying device type, data placement, array usage etc. Constants of this type must be used directly  */
 enum {
 	/** no device */
   GPUVM_NONE = 0,
@@ -28,7 +28,9 @@ enum {
 	/** data are to be used in kernel only for writing */
 	GPUVM_WRITE_ONLY = 0x20,
 	/** data are to be used in kernel both for reading and writing */
-	GPUVM_READ_WRITE = 0x30
+	GPUVM_READ_WRITE = 0x30,
+	/** enable collection of statistics on devices */
+	GPUVM_STAT = 0x40
 };
 
 /** constants specifying different types of errors */
@@ -58,6 +60,18 @@ enum {
 	GPUVM_ENOLINK = -11
 };
 
+/** possible values, including counters and parameters, which can be obtained using
+		gpuvm_stat() call. The types for the respective counters are specified as well
+*/
+enum {
+	/** whether GPUVM statistics collection is enabled, int (nonzero if enabled and zero if not) */
+	GPUVM_STAT_ENABLED = 1,
+	/** number of devices, unsigned */
+	GPUVM_STAT_NDEVS = 2,
+	/** total copying time (measured by OpenCL) in seconds, double */
+	GPUVM_STAT_COPY_TIME = 3
+};
+
 /** 
 		gets whether GPUVM library exists in the system. This is the only method which can be
 		called prior to gpuvm_init()
@@ -77,7 +91,10 @@ int gpuvm_library_exists();
 		@param devs devices to be used in the library. For OpenCL, each pointer must specify a
 		device queue. 
 		@param flags indicate device type and possibly usage strategy. Currently must be
-		::GPUVM_OPENCL
+		::GPUVM_OPENCL, with an optional flag of ::GPUVM_STAT if statistics collection must be
+		enabled. Note that if ::GPUVM_STAT is specified for OpenCL devices, the underlying
+		OpenCL queue must have profiling enabled, or OpenCL-related errors will occur during
+		further operation
 		@return 0 if successful and error code if not
  */
 __attribute__((visibility("default")))
@@ -135,5 +152,16 @@ int gpuvm_kernel_begin(void *hostptr, unsigned idev, int flags);
  */
 __attribute__((visibility("default")))
 int gpuvm_kernel_end(void *hostptr, unsigned idev);
+
+/** 
+		gets the value of a certain GPUVM counter or parameter
+		@param parameter the parameter; currently available parameters are ::GPUVM_STAT_NDEVS,
+		::GPUVM_STAT_ENABLED and ::GPUVM_STAT_COPY_TIME
+		@param value pointer to the returned value. The type of the value pointed to must be
+		the same as the type of the requested paramter
+ */
+__attribute__((visibility("default")))
+int gpuvm_stat(int parameter, void *value);
+// FINISHED HERE - provide implementation
 
 #endif

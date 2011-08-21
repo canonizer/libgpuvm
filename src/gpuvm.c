@@ -1,12 +1,14 @@
+/** @file gpuvm.c implementation of public GPUVM interface, except for stat collection */
+
 #include <stdio.h>
 #include <string.h>
 
+#include "gpuvm.h"
 #include "handler.h"
 #include "host-array.h"
 #include "link.h"
-#include "gpuvm.h"
+#include "stat.h"
 #include "util.h"
-
 
 unsigned ndevs_g = 0;
 void **devs_g = 0;
@@ -16,34 +18,34 @@ int gpuvm_library_exists() {
 }  // gpuvm_library_exists
 
 int gpuvm_init(unsigned ndevs, void **devs, int flags) {
-	int err;
 	// check arguments
 	if(ndevs == 0) {
-		fprintf(stderr, "zero devices not allowed");
+		fprintf(stderr, "gpuvm_init: zero devices not allowed\n");
 		return GPUVM_EARG;
 	}
 	if(!devs) {
-		fprintf(stderr, "null pointer to devices not allowed");
+		fprintf(stderr, "gpuvm_init: null pointer to devices not allowed\n");
 		return GPUVM_ENULL;
 	}
-	if(flags != GPUVM_OPENCL) {
-		fprintf(stderr, "invalid flags");
+	if(flags != GPUVM_OPENCL && flags != (GPUVM_OPENCL | GPUVM_STAT)) {
+		fprintf(stderr, "gpuvm_init: invalid flags\n");
 		return GPUVM_EARG;
 	}
 
 	// check state
 	if(ndevs_g) {
-		fprintf(stderr, "GPUVM already initialized");
+		fprintf(stderr, "gpuvm_init: GPUVM already initialized\n");
 		return GPUVM_ETWICE;
 	}
 	ndevs_g = ndevs;
 
 	// initialize auxiliary structures
-	if(err = sync_init())
-		return err;
-	if(err = salloc_init())
-		return err;
-	if(err = handler_init()) 
+	int err = 0;
+	(err = sync_init()) || 
+		(err = salloc_init()) || 
+		(err = handler_init()) || 
+		(err = stat_init(flags & GPUVM_STAT));
+	if(err)
 		return err;
 
 	// initialize devices
@@ -51,8 +53,6 @@ int gpuvm_init(unsigned ndevs, void **devs, int flags) {
 	if(!devs_g)
 		return GPUVM_ESALLOC;
 	memcpy(devs_g, devs, ndevs * sizeof(void*));
-
-	// TODO: initialize other structures
 	
 	return 0;
 }  // gpuvm_init
