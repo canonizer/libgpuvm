@@ -8,7 +8,11 @@
 #include "subreg.h"
 #include "util.h"
 
-//#define SIGCODE SIGSEGV
+#ifdef __APPLE__
+#define SIG_PROT SIGBUS
+#else
+#define SIG_PROT SIGSEGV
+#endif
 
 // TODO: also handle it in multithreaded case
 #define MAX_REGION_STACK_SIZE 64
@@ -26,7 +30,7 @@ region_t *region_stack_g[MAX_REGION_STACK_SIZE];
 /** pointer to region stack*/
 volatile unsigned region_stack_ptr_g = 0;
 
-void sigsegv_handler(int signum, siginfo_t *siginfo, void *ucontext);
+void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext);
 
 /** set up the new handler */
 int handler_init() {
@@ -36,12 +40,12 @@ int handler_init() {
 	action.sa_flags = SA_SIGINFO | SA_NODEFER;
 	sigfillset(&action.sa_mask);
 	sigdelset(&action.sa_mask, SIGABRT);
-	sigdelset(&action.sa_mask, SIGSEGV);
-	action.sa_sigaction = sigsegv_handler;
+	sigdelset(&action.sa_mask, SIG_PROT);
+	action.sa_sigaction = sigprot_handler;
 	
 	// set SIGSEGV handler
-	if(sigaction(SIGSEGV, &action, &old_action)) {
-		fprintf(stderr, "hander_init: can\'t set SIGSEGV handler\n");
+	if(sigaction(SIG_PROT, &action, &old_action)) {
+		fprintf(stderr, "hander_init: can\'t set SIG_PROT handler\n");
 		return GPUVM_ERROR;
 	}
 	
@@ -66,7 +70,7 @@ void call_old_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 		no reaction to error codes inside signal handler as there's no return value
 		if there is any error, then it's too late to handle it anyway
  */
-void sigsegv_handler(int signum, siginfo_t *siginfo, void *ucontext) {
+void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 
 	// cut off NULL addresses and signals not caused by mprotect
 	void *ptr = siginfo->si_addr;
@@ -92,7 +96,7 @@ void sigsegv_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 	lock_reader();
 	in_handler_g = 1;
 	//fprintf(stderr, "searching in region tree\n");
-	// check if we handle the SIGSEGV address
+	// check if we handle the SIG_PROT address
 	region_t *region = region_find_region(ptr);
 	if(!region) {
 		if(!in_second_fault)
@@ -111,7 +115,7 @@ void sigsegv_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 
 	if(in_second_fault) {
 		if(region_stack_ptr_g >= MAX_REGION_STACK_SIZE) {
-			fprintf(stderr, "sigsegv_hander: region stack size exceeded, aborting\n");
+			fprintf(stderr, "sigprot_hander: region stack size exceeded, aborting\n");
 			abort();
 		}
 		// push region into the stack

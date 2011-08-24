@@ -89,7 +89,7 @@ int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int fl
 	host_array_t *host_array = 0;
 	if(host_array_find(&host_array, hostptr, nbytes)) {
 		fprintf(stderr, "gpuvm_link: intersecting range already registered with GPUVM\n");
-		fprintf(stderr, "ptr=%tx, nbytes=%td, rangeptr=%tx, rangenbytes=%td\n", 
+		fprintf(stderr, "ptr=%p, nbytes=%zd, rangeptr=%p, rangenbytes=%zd\n", 
 						hostptr, nbytes, host_array->range.ptr, host_array->range.nbytes);
 		sync_unlock();
 		return GPUVM_ERANGE;

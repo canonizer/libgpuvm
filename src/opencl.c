@@ -1,6 +1,11 @@
 /** @file opencl.c implementation of OpenCL calls */
 
-#include <CL/cl.h>
+#ifdef __APPLE__
+  #include <cl.h>
+#else
+  #include <CL/cl.h>
+#endif
+
 #include <stddef.h>
 #include <stdio.h>
 

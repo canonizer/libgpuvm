@@ -29,7 +29,7 @@ int stat_init(int flags) {
 
 int gpuvm_stat(int parameter, void *value) {
 	if(!value) {
-		fprinf(stderr, "gpuvm_stat: pointer to value is NULL\n");
+		fprintf(stderr, "gpuvm_stat: pointer to value is NULL\n");
 		return GPUVM_ENULL;
 	}
 	switch(parameter) {

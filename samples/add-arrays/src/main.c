@@ -1,7 +1,10 @@
 /** OpenCL "hello, world!" sample; adding two arrays */
 
-#include <CL/cl.h>
-#include <malloc.h>
+#ifdef __APPLE__
+  #include <cl.h>
+#else
+  #include <CL/cl.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -64,12 +67,10 @@ int main(int argc, char** argv) {
 	CHECK(gpuvm_init(1, (void**)&queue, GPUVM_OPENCL));
 
 	// allocate host data
-	/*int *ha = (int*)malloc(SZ);
-	int *hb = (int*)malloc(SZ);
-	int *hc = (int*)malloc(SZ);*/
-	int *ha = (int*)memalign(GPUVM_PAGE_SIZE, SZ);
-	int *hb = (int*)memalign(GPUVM_PAGE_SIZE, SZ);
-	int *hc = (int*)memalign(GPUVM_PAGE_SIZE, SZ);
+	int *ha = 0, *hb = 0, *hc = 0;
+	CHECK(posix_memalign((void**)&ha, GPUVM_PAGE_SIZE, SZ));
+	CHECK(posix_memalign((void**)&hb, GPUVM_PAGE_SIZE, SZ));
+	CHECK(posix_memalign((void**)&hc, GPUVM_PAGE_SIZE, SZ));
 	for(int i = 0; i < N; i++) {
 		ha[i] = i;
 		hb[i] = i + 1;
@@ -101,7 +102,7 @@ int main(int argc, char** argv) {
 	CHECK(clSetKernelArg(kernel, 1, sizeof(cl_mem), &da));
 	CHECK(clSetKernelArg(kernel, 2, sizeof(cl_mem), &db));
 	size_t gws[1] = {N};
-	size_t lws[1] = {256};
+	size_t lws[1] = {128};
 	size_t gwos[1] = {0};
 	CHECK(clEnqueueNDRangeKernel(queue, kernel, 1, gwos, gws, lws, 0, 0, 0));
 	CHECK(clFinish(queue));

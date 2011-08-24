@@ -3,10 +3,18 @@ TGT=bin/$(NAME)
 SRC_C=src/*.c
 SRC=src/*.c src/*.h
 TMP=*~ src/*~
+INCLUDE_DIRS=-I../../src
+OSNAME:=$(shell uname -s)
+CFLAGS=-std=c99 -O2
+
+ifeq ($(OSNAME), Darwin)
+  INCLUDE_DIRS += -I/system/library/frameworks/opencl.framework/headers
+  CFLAGS += -m32
+endif
 
 build: $(TGT)
 $(TGT):	$(SRC)
-	gcc -std=c99 -L../../bin -I../../src -lgpuvm -lOpenCL $(SRC_C) -o$(TGT)
+	gcc $(CFLAGS) -L../../bin $(INCLUDE_DIRS) -lgpuvm -lOpenCL $(SRC_C) -o $(TGT)
 
 run: $(TGT)
 	$(TGT)

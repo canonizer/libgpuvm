@@ -4,9 +4,9 @@
 		implementation is for testing purposes only, and is not intended to be used in production
 */
 
-#include <malloc.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "gpuvm.h"
 #include "util.h"
@@ -15,17 +15,18 @@
 const size_t MAX_BYTES = 4 * 1024 * 1024;
 
 /** base pointer to blob from which data is allocated */
-char *baseptr = 0;
+char *baseptr_g = 0;
 
 /** number of bytes already allocated */
-size_t allocd = 0;
+size_t allocd_g = 0;
 
 /** request a data blob */
 int salloc_init() {
-	baseptr = (char*)memalign(GPUVM_PAGE_SIZE, MAX_BYTES);
-	if(!baseptr)
+	if(posix_memalign((void**)&baseptr_g, GPUVM_PAGE_SIZE, MAX_BYTES)) {
 		fprintf(stderr, "init: can\'t allocate memory from system");
-	return baseptr ? 0 : GPUVM_ESALLOC;
+		baseptr_g = 0;
+	}
+	return baseptr_g ? 0 : GPUVM_ESALLOC;
 }
 
 void *smalloc(size_t nbytes) {
@@ -35,14 +36,14 @@ void *smalloc(size_t nbytes) {
 		nbytes += SALIGN - nbytes % SALIGN;
 
 	// check if out of memory
-	if(allocd + nbytes > MAX_BYTES) {
+	if(allocd_g + nbytes > MAX_BYTES) {
 		fprintf(stderr, "smalloc: can\'t allocate memory\n");
 		return 0;
 	}	
 
 	// do allocation
-	void *resptr = baseptr + allocd;
-	allocd += nbytes;
+	void *resptr = baseptr_g + allocd_g;
+	allocd_g += nbytes;
 	return resptr;	
 }
 
@@ -50,7 +51,7 @@ void sfree(void *ptr) {
 	if(!ptr)
 		return;
 	char *cptr = (char*)ptr;
-	if(cptr - baseptr < 0 || cptr - baseptr > allocd)
+	if(cptr - baseptr_g < 0 || cptr - baseptr_g > allocd_g)
 		fprintf(stderr, "sfree: invalid pointer");
 	return;
 }
