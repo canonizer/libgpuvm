@@ -21,12 +21,14 @@ ifeq ($(OSNAME), Darwin)
 endif
 TGT_DL=lib$(NAME).$(DL_SUFFIX)
 TGT_WITH_VERSION=$(TGT_DL).$(VERSION)
+TGT_WITH_MAJOR_VERSION=$(TGT_DL).$(MAJOR_VERSION)
 ifeq ($(OSNAME), Darwin)
 	TGT_WITH_VERSION=lib$(NAME).$(VERSION).$(DL_SUFFIX)
+	TGT_WITH_MAJOR_VERSION=lib$(NAME).$(MAJOR_VERSION).$(DL_SUFFIX)
 endif
 TGT=bin/$(TGT_WITH_VERSION)
 TGT_HEADER=$(NAME).h
-TMP=$(TGT) *~ src/*~ $(TGT) bin/*.$(DL_SUFFIX) doc/*/*
+TMP=$(TGT) *~ src/*~ $(TGT) bin/$(TGT_WITH_MAJOR_VERSION) bin/*.$(DL_SUFFIX) doc/*/*
 
 # compilation settings
 INCLUDE_DIRS=
@@ -48,6 +50,7 @@ build : $(TGT)
 $(TGT) : $(SRC)
 	$(CC) $(CFLAGS) $(DL_FLAGS) $(INCLUDE_DIRS) $(LIBS) $(SRCC) -o $(TGT)
 	ln -sf $(TGT_WITH_VERSION) bin/$(TGT_DL)
+	ln -sf $(TGT_WITH_VERSION) bin/$(TGT_WITH_MAJOR_VERSION)
 
 # todo: handle setting symbolic links in a more accurate way
 install:	$(TGT)
@@ -60,4 +63,4 @@ doxy:	$(SRC)
 	doxygen doxygen
 
 clean:	
-	rm -rf $(TMP)
+	rm -rf $(TMP) 

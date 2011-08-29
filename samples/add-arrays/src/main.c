@@ -119,5 +119,10 @@ int main(int argc, char** argv) {
 	for(int i = 0; i < N; i += step)
 		printf("hc[%d] = %d\n", i, hc[i]);
 
+	// unlink
+	CHECK(gpuvm_unlink(ha, 0));
+	CHECK(gpuvm_unlink(hb, 0));
+	CHECK(gpuvm_unlink(hc, 0));
+
 	return 0;
 }  // end of main()

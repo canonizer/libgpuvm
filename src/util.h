@@ -24,7 +24,7 @@
 /** initializes special separate allocator
 		@returns 0 if successful and negative value if not
 */
-int salloc_init();
+int salloc_init(void);
 
 /** 
 		allocates specific number of bytes
