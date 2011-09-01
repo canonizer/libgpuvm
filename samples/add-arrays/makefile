@@ -1,5 +1,5 @@
 NAME=hello-world
-TGT=bin/$(NAME)
+TGT=../bin/$(NAME)
 SRC_C=src/*.c
 SRC=src/*.c src/*.h
 TMP=*~ src/*~

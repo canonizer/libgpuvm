@@ -34,7 +34,7 @@ typedef struct subreg_struct {
 			bit 1 for device 1 etc */
 	volatile devmask_t actual_mask;
 	/** the mutex to lock and unlock the region in a multithreaded environment */
-	pthread_mutex_t mutex;
+	// pthread_mutex_t mutex;
 } subreg_t;
 
 /** allocates a new subregion. The subregion is initially assumed to be actual on host 

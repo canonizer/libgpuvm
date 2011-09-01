@@ -23,7 +23,7 @@ typedef struct region_struct {
 	/** sorted list of subregions associated with this region */
 	subreg_list_t *subreg_list;
 	/** mutex to lock and unlock the region in a multithreaded environment */
-	pthread_mutex_t mutex;
+	// pthread_mutex_t mutex;
 } region_t;
 
 /** allocates a new region which consists solely of the specified subregion. Also, assigns

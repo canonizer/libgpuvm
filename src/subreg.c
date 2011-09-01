@@ -26,11 +26,11 @@ int subreg_alloc(subreg_t **p, void *hostptr, size_t nbytes) {
 	new_subreg->actual_device = NO_ACTUAL_DEVICE;
 	new_subreg->actual_host = 1;
 	new_subreg->actual_mask = 0;
-	if(pthread_mutex_init(&new_subreg->mutex, 0)) {
-		fprintf(stderr, "subreg_alloc: can\'t init mutex");
-		sfree(new_subreg);
-		return GPUVM_ERROR;
-	}
+	// if(pthread_mutex_init(&new_subreg->mutex, 0)) {
+	//	fprintf(stderr, "subreg_alloc: can\'t init mutex");
+	//	sfree(new_subreg);
+	//	return GPUVM_ERROR;
+	//}
 	//fprintf(stderr, "subreg: ptr=%tx, nbytes=%td\n", hostptr, nbytes);
 
 	//fprintf(stderr, "searching for a region\n");
@@ -47,7 +47,7 @@ int subreg_alloc(subreg_t **p, void *hostptr, size_t nbytes) {
 		err = region_alloc(0, new_subreg);
 	}
 	if(err) {
-		pthread_mutex_destroy(&new_subreg->mutex);
+		//pthread_mutex_destroy(&new_subreg->mutex);
 		sfree(new_subreg);
 		return err;
 	}
@@ -60,23 +60,25 @@ int subreg_alloc(subreg_t **p, void *hostptr, size_t nbytes) {
 
 void subreg_free(subreg_t *subreg) {
 	region_remove_subreg(subreg->region, subreg);
-	pthread_mutex_destroy(&subreg->mutex);
+	// pthread_mutex_destroy(&subreg->mutex);
 	sfree(subreg);
 }
 
 static int subreg_lock(subreg_t *subreg) {
-	if(pthread_mutex_lock(&subreg->mutex)) {
-		fprintf(stderr, "subreg_lock: can\'t lock mutex");
-		return GPUVM_ERROR;
-	}
+	// no-op - due to global lock
+	// if(pthread_mutex_lock(&subreg->mutex)) {
+	//	fprintf(stderr, "subreg_lock: can\'t lock mutex");
+	//	return GPUVM_ERROR;
+	// }
 	return 0;
 }
 
 static int subreg_unlock(subreg_t *subreg) {
-	if(pthread_mutex_unlock(&subreg->mutex)) {
-		fprintf(stderr, "subreg_unlock: can\'t unlock mutex");
-		return GPUVM_ERROR;
-	}
+	// no-op - due to global lock
+	//if(pthread_mutex_unlock(&subreg->mutex)) {
+	//	fprintf(stderr, "subreg_unlock: can\'t unlock mutex");
+	//	return GPUVM_ERROR;
+	//}
 	return 0;
 }
 
