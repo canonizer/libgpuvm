@@ -224,6 +224,9 @@ void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 		return;
 	}
 
+	if(!in_second_fault)
+		stop_other_threads();
+
 	//fprintf(stderr, "region found, removing protection\n");
 	// remove region memory protection
 	region_lock(region);
@@ -244,7 +247,6 @@ void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 	// sync all subregions of current region to host
 	subreg_list_t *list;
 	if(!in_second_fault) {
-		stop_other_threads();
 		for(list = region->subreg_list; list; list = list->next)
 			subreg_sync_to_host(list->subreg);
 

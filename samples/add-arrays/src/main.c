@@ -31,7 +31,7 @@
 
 #define COUNT 4
 
-#define N (1024 * 64)
+#define N (1024 * 8 + 64)
 #define SZ (N * sizeof(int))
 
 
@@ -67,10 +67,14 @@ int main(int argc, char** argv) {
 	CHECK(gpuvm_init(1, (void**)&queue, GPUVM_OPENCL));
 
 	// allocate host data
-	int *ha = 0, *hb = 0, *hc = 0;
-	CHECK(posix_memalign((void**)&ha, GPUVM_PAGE_SIZE, SZ));
-	CHECK(posix_memalign((void**)&hb, GPUVM_PAGE_SIZE, SZ));
-	CHECK(posix_memalign((void**)&hc, GPUVM_PAGE_SIZE, SZ));
+	int *ha = 0, *hb = 0, *hc = 0, *hg = 0;
+	ha = (int*)malloc(SZ);
+	hb = (int*)malloc(SZ);
+	hc = (int*)malloc(SZ);
+	hg = (int*)malloc(SZ);
+	CHECK_NULL(ha);
+	CHECK_NULL(hb);
+	CHECK_NULL(hg);
 	for(int i = 0; i < N; i++) {
 		ha[i] = i;
 		hb[i] = i + 1;
@@ -102,7 +106,7 @@ int main(int argc, char** argv) {
 	CHECK(clSetKernelArg(kernel, 1, sizeof(cl_mem), &da));
 	CHECK(clSetKernelArg(kernel, 2, sizeof(cl_mem), &db));
 	size_t gws[1] = {N};
-	size_t lws[1] = {128};
+	size_t lws[1] = {64};
 	size_t gwos[1] = {0};
 	CHECK(clEnqueueNDRangeKernel(queue, kernel, 1, gwos, gws, lws, 0, 0, 0));
 	CHECK(clFinish(queue));
@@ -113,16 +117,40 @@ int main(int argc, char** argv) {
 	CHECK(gpuvm_kernel_end(hb, 0));
 	CHECK(gpuvm_kernel_end(hc, 0));
 
+	// evaluate "gold" result
+	for(int i = 0; i < N; i++)
+		hg[i] = ha[i] + hb[i];
+
+	// check result
+	for(int i = 0; i < N; i++) {
+		if(hg[i] != hc[i]) {
+			printf("check: FAILED\n");
+			printf("hg[%d] != hc[%d]: %d != !d\n", i, i, hg[i], hc[i]);
+			exit(-1);
+		}
+	}
+	printf("check: PASSED\n");
+
 	// print result
 	printf("printing result\n");
-	int step = 128;
+	int step = 512;
 	for(int i = 0; i < N; i += step)
 		printf("hc[%d] = %d\n", i, hc[i]);
-
 	// unlink
 	CHECK(gpuvm_unlink(ha, 0));
 	CHECK(gpuvm_unlink(hb, 0));
 	CHECK(gpuvm_unlink(hc, 0));
+
+	// free OpenCL buffers
+	clReleaseMemObject(da);
+	clReleaseMemObject(db);
+	clReleaseMemObject(dc);
+
+	// free host memory
+	free(ha);
+	free(hb);
+	free(hc);
+	free(hg);
 
 	return 0;
 }  // end of main()

@@ -1,3 +1,3 @@
-NAME=add-arrays
+NAME=add-arrays-ngpu
 
 include ../common.mk
