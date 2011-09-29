@@ -1,0 +1,25 @@
+DESCRIPTION
+
+libgpuvm simplifies data transfer between host and a GPU using userspace
+pagefault handling (or simply, SIGSEGV catching). It is primarily intended for
+integrating GPU support into languages, although it may also be used as a
+standalone library. It is based on OpenCL and UNIX syscalls, and currently
+supports OpenCL-capable devices.
+
+
+PREREQUISITES
+
+- OpenCL implementation (libOpenCL) - Apple, NVidia or AMD will do
+- Linux or Mac OS X 10.6+
+- pthreads
+
+
+BUILDING & INSTALLATION
+
+  make && sudo make install
+
+  (sudo required only when installing system-wide)
+
+USAGE
+				
+see accompanying documentation (doc/ directory and below)
