@@ -99,7 +99,6 @@ int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int fl
 		sync_unlock();
 		return GPUVM_ELINK;
 	}
-	//fprintf(stderr, "host array not found, allocating new one\n");
 
 	// allocate an array if not found
 	host_array_t *new_host_array = 0;
@@ -112,7 +111,7 @@ int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int fl
 		}
 		host_array = new_host_array;
 	}
-	//fprintf(stderr, "allocating a new link");
+
 	// create a link with an array (and assign it into the array)
 	link_t *link = 0;
 	err = link_alloc(&link, devbuf, idev, host_array);

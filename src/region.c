@@ -162,19 +162,20 @@ int region_alloc(region_t **p, subreg_t *subreg) {
 		 / GPUVM_PAGE_SIZE + 1) * GPUVM_PAGE_SIZE - (ptrdiff_t)new_region->range.ptr;
 	new_region->prot_status = PROT_READ | PROT_WRITE;
 	new_region->nsubregs = 1;
-	// if(pthread_mutex_init(&new_region->mutex, 0)) {
-	// fprintf(stderr, "region_alloc: can\'t initialize mutex\n");
-	//	sfree(new_region);
-	//	return GPUVM_ERROR;
-	// }
-
-	//fprintf(stderr, "region: ptr=%tx, nbytes=%td\n", 
-	//				new_region->range.ptr, new_region->range.nbytes);
+#if 0
+	if(pthread_mutex_init(&new_region->mutex, 0)) {
+		fprintf(stderr, "region_alloc: can\'t initialize mutex\n");
+		sfree(new_region);
+		return GPUVM_ERROR;
+	}
+#endif
 	
 	// initialize subregion list
 	new_region->subreg_list = (subreg_list_t*)smalloc(sizeof(subreg_list_t));
 	if(!new_region->subreg_list) {
-		// pthread_mutex_destroy(&new_region->mutex);
+#if 0
+		pthread_mutex_destroy(&new_region->mutex);
+#endif
 		sfree(new_region);
 		return GPUVM_ESALLOC;
 	}
@@ -185,7 +186,9 @@ int region_alloc(region_t **p, subreg_t *subreg) {
 	int err = tree_add(new_region);
 	if(err) {
 		sfree(new_region->subreg_list->subreg);
-		// pthread_mutex_destroy(&new_region->mutex);
+#if 0
+		pthread_mutex_destroy(&new_region->mutex);
+#endif
 		sfree(new_region);
 		return err;
 	}
@@ -221,7 +224,9 @@ void region_free(region_t *region) {
 	tree_remove(region);
 	if(region->subreg_list)
 		fprintf(stderr, "region_free: removing region with subregions\n");
-	// pthread_mutex_destroy(&region->mutex);
+#if 0
+	pthread_mutex_destroy(&region->mutex);
+#endif
 	if(region->prot_status != (PROT_READ | PROT_WRITE))
 		region_unprotect(region);
 	sfree(region);

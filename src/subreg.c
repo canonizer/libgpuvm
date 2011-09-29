@@ -26,24 +26,23 @@ int subreg_alloc(subreg_t **p, void *hostptr, size_t nbytes) {
 	new_subreg->actual_device = NO_ACTUAL_DEVICE;
 	new_subreg->actual_host = 1;
 	new_subreg->actual_mask = 0;
-	// if(pthread_mutex_init(&new_subreg->mutex, 0)) {
-	//	fprintf(stderr, "subreg_alloc: can\'t init mutex");
-	//	sfree(new_subreg);
-	//	return GPUVM_ERROR;
-	//}
-	//fprintf(stderr, "subreg: ptr=%tx, nbytes=%td\n", hostptr, nbytes);
+#if 0
+	if(pthread_mutex_init(&new_subreg->mutex, 0)) {
+		fprintf(stderr, "subreg_alloc: can\'t init mutex");
+	 	sfree(new_subreg);
+		return GPUVM_ERROR;
+	}
+#endif
 
-	//fprintf(stderr, "searching for a region\n");
 	// allocate or find region for this subregion
 	int err;
 	region_t *region = region_find_region(hostptr);
 	if(region) {
-		//fprintf(stderr, "adding to an existing region\n");
+
 		// add to existing region
 		err = region_add_subreg(region, new_subreg);
 	} else {
 		// create new region
-		//fprintf(stderr, "allocating a new region\n");
 		err = region_alloc(0, new_subreg);
 	}
 	if(err) {
@@ -52,7 +51,6 @@ int subreg_alloc(subreg_t **p, void *hostptr, size_t nbytes) {
 		return err;
 	}
 
-	//fprintf(stderr, "subregion allocated\n");
 	// return
 	*p = new_subreg;
 	return 0;

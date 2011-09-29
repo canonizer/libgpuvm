@@ -89,7 +89,6 @@ int host_array_alloc(host_array_t **p, void *hostptr, size_t nbytes, int flags) 
 		sfree(new_host_array);
 		return GPUVM_ESALLOC;
 	}
-	//fprintf(stderr, "host_array: ptr=%tx, nbytes=%td\n", hostptr, nbytes);
 	
 	// generate subranges
 	memrange_t subranges[MAX_SUBREGS];
@@ -97,10 +96,6 @@ int host_array_alloc(host_array_t **p, void *hostptr, size_t nbytes, int flags) 
 	unsigned isubreg;
 	new_host_array->nsubregs = nsubregs;
 	
-	//for(isubreg = 0; isubreg < nsubregs; isubreg++)
-	//  fprintf(stderr, "subrange %d: ptr=%tx, nbytes=%td\n", isubreg, 
-	//					subranges[isubreg].ptr, subranges[isubreg].nbytes);
-
 	// allocate subregions
 	int err;
 	for(isubreg = 0; isubreg < nsubregs; isubreg++) {
