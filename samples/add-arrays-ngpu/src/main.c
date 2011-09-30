@@ -32,7 +32,7 @@
 
 #define COUNT 4
 
-#define N (1024 * 8 + 128)
+#define N (1024 * 20 + 128)
 #define SZ (N * sizeof(int))
 #define NGPUS 2
 
@@ -170,9 +170,10 @@ int main(int argc, char** argv) {
 
 	// print result
 	printf("printing result\n");
-	int step = 512;
-	for(int i = 0; i < N; i += step)
-		printf("hc[%d] = %d\n", i, hc[i]);
+	int step = 768;
+	for(int i = 0; i < N; i ++)
+		if(i % step == 0)
+			printf("hc[%d] = %d\n", i, hc[i]);
 
 	/*
 	// unlink

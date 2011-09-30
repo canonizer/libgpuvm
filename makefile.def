@@ -1,0 +1,4 @@
+# installation settings
+PREFIX=/usr
+LIB_PREFIX=$(PREFIX)/lib
+HEADER_PREFIX=$(PREFIX)/include

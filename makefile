@@ -1,11 +1,7 @@
 # configuration settings - specifying OS
 OSNAME:=$(shell uname -s)
 
-# installation settings
-PREFIX=/usr
-# TODO: handle 64-bit case
-LIB_PREFIX=$(PREFIX)/lib
-HEADER_PREFIX=$(PREFIX)/include
+include makefile.def
 
 # project variables
 NAME=gpuvm
@@ -27,8 +23,9 @@ ifeq ($(OSNAME), Darwin)
 	TGT_WITH_MAJOR_VERSION=lib$(NAME).$(MAJOR_VERSION).$(DL_SUFFIX)
 endif
 TGT=bin/$(TGT_WITH_VERSION)
-TGT_HEADER=$(NAME).h
-TMP=$(TGT) *~ src/*~ $(TGT) bin/$(TGT_WITH_MAJOR_VERSION) bin/*.$(DL_SUFFIX) doc/*/*
+TGT_HEADER=src/$(NAME).h
+TMP=$(TGT) *~ src/*~ $(TGT) bin/$(TGT_WITH_MAJOR_VERSION) bin/*.$(DL_SUFFIX) \
+	doc/*/* samples/bin/*
 
 # compilation settings
 INCLUDE_DIRS=
@@ -56,8 +53,8 @@ $(TGT) : $(SRC)
 install:	$(TGT)
 	cp $(TGT) $(LIB_PREFIX)
 	cp $(TGT_HEADER) $(HEADER_PREFIX)
-	ln -sf $(PREFIX)/$(TGT_WITH_VERSION) $(PREFIX)/$(TGT_DL).$(MAJOR_VERSION)
-	ln -sf $(PREFIX)/$(TGT_DL).$(MAJOR_VERSION) $(PREFIX)/$(TGT_DL)
+	ln -sf $(PREFIX)/$(TGT_WITH_VERSION) $(PREFIX)/$(TGT_WITH_MAJOR_VERSION)
+	ln -sf $(PREFIX)/$(TGT_WITH_MAJOR_VERSION) $(PREFIX)/$(TGT_DL)
 
 doxy:	$(SRC)
 	doxygen doxygen

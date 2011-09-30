@@ -16,9 +16,12 @@ PREREQUISITES
 
 BUILDING & INSTALLATION
 
-  make && sudo make install
-
+  make && sudo make install 
+	ldconfig (Linux only)
   (sudo required only when installing system-wide)
+
+	make doc (for building documentation, requires doxygen)
+
 
 USAGE
 				

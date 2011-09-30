@@ -1,4 +1,5 @@
 #include <dirent.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stddef.h>
@@ -20,22 +21,34 @@
 #define SIG_PROT SIGSEGV
 #endif
 
+// maximum number of nested SIGSEGVs handled + 1
 #define MAX_REGION_STACK_SIZE 64
+
+// maximum number of threads tracked (linux)
+#define MAX_NTHREADS 256
 
 // maximum path length for directories in /proc
 #define MAX_PROC_PATH 127
 
+// buffer size for internal needs
+#define BUFFER_SIZE 64
+
 #ifndef __APPLE__
+/** array of threads stopped by libgpuvm, linux only */
+pid_t stopped_threads_g[MAX_NTHREADS];
+
+/** number of threads stopped by libgpuvm, linux only */
+unsigned nstopped_threads_g = 0;
+
 /** wrapper for gettid syscall */
-pid_t gettid(void) {
+static pid_t gettid(void) {
 	return (pid_t)syscall(SYS_gettid);
 }
 
 /** wrapper for tgkill syscall */
-int tgkill(int tgid, int tid, int sig) {
+static int tgkill(int tgid, int tid, int sig) {
 	return syscall(SYS_tgkill, tgid, tid, sig);
 }
-
 #endif
 
 /** the old handler */
@@ -75,6 +88,65 @@ int handler_init() {
 	return 0;
 }
 
+#ifndef __APPLE
+/** checks whether the thread must be stopped; the thread is identified by its tid;
+		linux only 
+		@param pid process id of the current process
+		@param tid thread id of the thread to be checked
+		@returns non-zero if the thread must be stopped and zero if not
+		@remarks a zombie thread must not be stopped, and will never change to
+		stopped state; a stopped thread needn't be stopped; a non-stopped thread
+		must be stopped, however
+*/
+static int thread_must_be_stopped(pid_t pid, pid_t tid) {
+	char thread_stat_path[MAX_PROC_PATH + 1];
+	snprintf(thread_stat_path, MAX_PROC_PATH + 1, "/proc/%d/task/%d/stat", 
+					 (int)pid, (int)tid);
+	int stat_fd = open(thread_stat_path, O_RDONLY, 0);
+	if(stat_fd >= 0) {
+		// scanf can't be used, as it requires FILE*, which must be malloc'ed, so we
+		// simply read up to closing ), and then miss the space. Exec names containing 
+		// ')' are unsupported, unfortunately
+		char thread_state = '\0';
+		char buffer[BUFFER_SIZE];
+		int next_char_is_state = 0;
+		unsigned nchars_in_buffer = 0;
+		unsigned buffer_ptr = 0;
+		while(1) {
+			if(buffer_ptr >= nchars_in_buffer) {
+				nchars_in_buffer = read(stat_fd, buffer, BUFFER_SIZE);
+				buffer_ptr = 0;
+				if(!nchars_in_buffer)
+					break;
+			}  // if(read from buffer)
+			char c = buffer[buffer_ptr++];
+			if(next_char_is_state) {
+				thread_state = c;
+				break;
+			} else if(c == ')')
+				next_char_is_state = 1;			
+		}  // while(1)
+		/*
+		while(read(stat_fd, &c, 1)) {
+			if(c == ')') {
+				read(stat_fd, &thread_state, 1);
+				break;
+			}			
+		}  // while()
+		*/
+		close(stat_fd);
+		if(!thread_state) {
+			fprintf(stderr, "thread_must_be_stopped: stat_fd = %d\n", stat_fd);
+			fprintf(stderr, "thread_must_be_stopped: can\'t get thread %d state\n", 
+							(int)tid);
+			return 0;
+		} else 
+			return thread_state == 'Z' || thread_state == 'S';
+	} else
+		return 0;
+}  // is_thread_stopped
+#endif
+
 /** 
 		stops all threads except for the caller thread. Used to prevent false sharing errors
 		between removing of memory protection and actualizing host buffer state. No errors are
@@ -85,6 +157,8 @@ int handler_init() {
  */
 static void stop_other_threads(void) {
 #ifndef __APPLE__
+	nstopped_threads_g = 0;
+
 	// get current thread id and process id's
 	pid_t my_tid = gettid();
 	pid_t my_pid = getpid();
@@ -112,12 +186,29 @@ static void stop_other_threads(void) {
 				if(!stop_every_thread) {
 					// check status of this thread
 					// TODO: do the actual check - currently simply assume it is not needed
-					//snprintf(thread_stat_path, MAX_PROC_PATH + 1, "/proc/%d/task/%d/stat", 
-					//				 (int)my_pid, other_tid);
-					stop_this_thread = 0;
+					stop_this_thread = thread_must_be_stopped(my_pid, other_tid);
 				}
-				if(stop_this_thread)
+				if(stop_this_thread) {
+					running_thread_found = 1;
 					tgkill(-1, (pid_t)other_tid, SIGSTOP);
+					// add to array of stopped threads
+					int must_add_to_stopped = 1;
+					unsigned ithread;
+					for(ithread = 0; ithread < nstopped_threads_g; ithread++)
+						if(stopped_threads_g[ithread] == other_tid) {
+							must_add_to_stopped = 0;
+							break;
+						}
+					if(must_add_to_stopped) {
+						if(nstopped_threads_g < MAX_NTHREADS) {
+							stopped_threads_g[nstopped_threads_g] = other_tid;
+							nstopped_threads_g++;
+						} else {
+							fprintf(stderr, "stop_other_threads: too many threads, some may "
+											"fail to resume\n");
+						}
+					}  // if(must_add_to_stopped)
+				}  // if(stop_this_thread)
 			} else {
 				fprintf(stderr, "stop_other_threads: %s: non-numeric subdir of thread dir "
 								"found\n", thread_dirent->d_name);
@@ -143,6 +234,11 @@ static void stop_other_threads(void) {
 static void cont_other_threads(void) {
 #ifndef __APPLE__
 	// get current thread id and process id's
+	unsigned ithread;
+	for(ithread = 0; ithread < nstopped_threads_g; ithread++)
+		tgkill(-1, stopped_threads_g[ithread], SIGCONT);
+	nstopped_threads_g = 0;
+	/*
 	pid_t my_tid = gettid();
 	pid_t my_pid = getpid();
 
@@ -165,6 +261,7 @@ static void cont_other_threads(void) {
 							"found\n", thread_dirent->d_name);
 		}  // if(other_tid)
 	}  // while(thread_dirent)
+	*/
 	// every thread stopped in stop_other_threads() has been resumed
 #endif
 }  // cont_other_threads
