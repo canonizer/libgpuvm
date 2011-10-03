@@ -9,6 +9,7 @@
 #include <stdlib.h>
 
 #include <gpuvm.h>
+#include <unistd.h>
 
 #include "helper.h"
 
@@ -45,9 +46,6 @@ void get_device(cl_device_id *pdev) {
 	clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, pdev, &ndevs);
 	if(ndevs)
 		return;
-	clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, pdev, &ndevs);
-	if(ndevs)
-		return;
 	else {
 		printf("can\'t get OpenCL device\n");
 		exit(-1);
@@ -63,6 +61,7 @@ int main(int argc, char** argv) {
 	// create context
 	cl_context ctx = clCreateContext(0, 1, &dev, 0, 0, 0);
 	CHECK_NULL(ctx);
+
 
 	// create queue
 	cl_command_queue queue = clCreateCommandQueue(ctx, dev, 0, 0);
@@ -151,6 +150,7 @@ int main(int argc, char** argv) {
 	int step = 512;
 	for(int i = 0; i < N; i += step)
 		printf("hc[%d] = %d\n", i, hc[i]);
+
 	// unlink
 	CHECK(gpuvm_unlink(ha, 0));
 	CHECK(gpuvm_unlink(hb, 0));

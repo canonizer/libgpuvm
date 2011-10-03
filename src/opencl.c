@@ -46,7 +46,9 @@ int ocl_sync_to_host(void *hostptr, size_t nbytes, unsigned idev, void *devbuf,
 	cl_command_queue queue = (cl_command_queue)devs_g[idev];
 	cl_mem buffer = (cl_mem)devbuf;
 	cl_event ev = 0;
-	int cl_err = clEnqueueReadBuffer(queue, devbuf, CL_TRUE, offset, nbytes, hostptr, 0, 0, &ev);
+	int cl_err = clEnqueueReadBuffer(queue, devbuf, CL_TRUE, offset, nbytes,
+										 hostptr, 0, 0, &ev);
+	//clFlush(queue);
 	if(cl_err != CL_SUCCESS) {
 		if(cl_err == CL_MEM_OBJECT_ALLOCATION_FAILURE || 
 			 cl_err == CL_OUT_OF_RESOURCES || cl_err == CL_OUT_OF_HOST_MEMORY) {
@@ -76,7 +78,9 @@ int ocl_sync_to_device(const void *hostptr, size_t nbytes, unsigned idev, void *
 	cl_command_queue queue = (cl_command_queue)devs_g[idev];
 	cl_mem buffer = (cl_mem)devbuf;
 	cl_event ev = 0;
-	int cl_err = clEnqueueWriteBuffer(queue, devbuf, CL_TRUE, offset, nbytes, hostptr, 0, 0, &ev);
+	int cl_err = clEnqueueWriteBuffer(queue, devbuf, CL_TRUE, offset, nbytes,
+											 hostptr, 0, 0, &ev);
+	//clFlush(queue);
 	if(cl_err != CL_SUCCESS) {
 		if(cl_err == CL_MEM_OBJECT_ALLOCATION_FAILURE || 
 			 cl_err == CL_OUT_OF_RESOURCES || cl_err == CL_OUT_OF_HOST_MEMORY) {

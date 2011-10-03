@@ -60,11 +60,13 @@ void get_devices(cl_device_id devs[NGPUS]) {
 	clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, NGPUS, devs, &ndevs);
 	if(ndevs == NGPUS)
 		return;
-	
-	// get CPU device and split
-	cl_device_id cpu_device;
-	CHECK(clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, &cpu_device, &ndevs));
-	devs[0] = devs[1] = cpu_device;
+	else if(ndevs) {
+		devs[1] = devs[0];
+		return;
+	} else {
+		printf("can\'t allocate a GPU device\n");
+		exit(-1);
+	}
 }  // get_device
 
 void *thread_fun(void *ptr) {
@@ -100,8 +102,11 @@ void *thread_fun(void *ptr) {
 	size_t gws[1] = {my_n};
 	size_t lws[1] = {64};
 	size_t gwos[1] = {0};
-	CHECK(clEnqueueNDRangeKernel(queues[igpu], kernels[igpu], 1, gwos, gws, lws, 0, 0, 0));
+	CHECK(clEnqueueNDRangeKernel(queues[igpu], kernels[igpu], 1, gwos, gws, lws,
+	0, 0, 0));
+	printf("thread %d: kernel enqueued\n", igpu);
 	CHECK(clFinish(queues[igpu]));
+	printf("thread %d: kernel finished\n", igpu);
 
 	// on kernel end
 	CHECK(gpuvm_kernel_end(ha + offset, igpu));
