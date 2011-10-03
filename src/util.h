@@ -140,6 +140,29 @@ static inline memrange_cmp_t memrange_pos_ptr(const memrange_t* range, const voi
 
 /** @{ */
 
+/** 
+		stops all threads except for the caller thread. Used to prevent false
+		sharing errors between removing of memory protection and actualizing host
+		buffer state. No errors are handled inside this function and no errors are
+		returned, as it is always late to handle errors inside signal
+		hander. Supported only on Linux or other OS with /proc FS, and on Darwin
+		using Mach API
+ */
+void stop_other_threads(void);
+
+/** 
+		resumes other threads, except for the caller, after they have been
+		stopped. No errors are handled inside this function and no errors are
+		returned, as it is always late to handle errors inside signal
+		hander. Supported only on Linux or other OS with /proc FS, and on Darwin
+		using Mach API
+ */
+void cont_other_threads(void);
+
+/** @} */
+
+/** @{ */
+
 /** total number of devices */
 extern unsigned ndevs_g;
 
