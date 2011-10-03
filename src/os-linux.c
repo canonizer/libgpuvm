@@ -6,8 +6,11 @@
 
 #include <dirent.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/syscall.h>
+#include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
 #include "gpuvm.h"
