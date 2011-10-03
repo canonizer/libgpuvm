@@ -53,6 +53,12 @@ typedef struct block_header_s {
 /** the value written to next field of an allocated block, checked on free */
 #define ALLOC_CANARY (~(ptrdiff_t)0)
 
+#ifndef __APPLE__
+#define ANONYMOUS_MAP_FLAG MAP_ANONYMOUS
+#else
+#define ANONYMOUS_MAP_FLAG MAP_ANON
+#endif
+
 /** number of free pages currently being held */
 size_t npages_held_g = 0;
 
@@ -66,7 +72,7 @@ block_header_t *block_list_g = 0;
 static block_header_t *alloc_os_blocks(void) {
 	// allocate raw memory
 	char *raw = (char*)mmap(0, OS_BLOCK_SIZE, PROT_READ | PROT_WRITE, 
-									 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+									 MAP_PRIVATE | ANONYMOUS_MAP_FLAG, -1, 0);
 	if(!raw) {
 		fprintf(stderr, "alloc_os_blocks: can\'t get blocks from OS\n");
 		return 0;

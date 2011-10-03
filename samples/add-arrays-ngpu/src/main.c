@@ -44,6 +44,29 @@ cl_kernel kernels[NGPUS];
 int igpus[NGPUS];
 int *ha = 0, *hb = 0, *hc = 0, *hg = 0;
 
+typedef cl_int (*clCreateSubDevices_t)
+(cl_device_id in_device, const cl_bitfield *properties, 
+ cl_uint num_entries, cl_device_id *out_devices, cl_uint *num_devices);
+clCreateSubDevices_t clCreateSubDevices;
+
+void get_devices(cl_device_id devs[NGPUS]) {
+
+	// get platform
+	cl_platform_id platform;
+	CHECK(clGetPlatformIDs(1, &platform, 0));
+
+	// get device
+	int ndevs = 0;
+	clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, NGPUS, devs, &ndevs);
+	if(ndevs == NGPUS)
+		return;
+	
+	// get CPU device and split
+	cl_device_id cpu_device;
+	CHECK(clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, &cpu_device, &ndevs));
+	devs[0] = devs[1] = cpu_device;
+}  // get_device
+
 void *thread_fun(void *ptr) {
 	int igpu = *(int*)ptr;
 	size_t my_sz = SZ / NGPUS;
@@ -117,12 +140,7 @@ int main(int argc, char** argv) {
 		hb[i] = i + 1;
 	}
 
-	// get platform
-	cl_platform_id platform;
-	CHECK(clGetPlatformIDs(1, &platform, 0));
-
-	// get devices (at least NGPUS, or the program will crash)
-	CHECK(clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, NGPUS, devs, 0));
+	get_devices(devs);
 
 	for(int igpu = 0; igpu < NGPUS; igpu++) {
 		// initialize GPU id

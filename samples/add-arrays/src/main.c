@@ -34,16 +34,31 @@
 #define N (1024 * 8 + 64)
 #define SZ (N * sizeof(int))
 
-
-int main(int argc, char** argv) {
+void get_device(cl_device_id *pdev) {
 
 	// get platform
 	cl_platform_id platform;
 	CHECK(clGetPlatformIDs(1, &platform, 0));
 
 	// get device
+	int ndevs = 0;
+	clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, pdev, &ndevs);
+	if(ndevs)
+		return;
+	clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, pdev, &ndevs);
+	if(ndevs)
+		return;
+	else {
+		printf("can\'t get OpenCL device\n");
+		exit(-1);
+	}
+}  // get_device
+
+int main(int argc, char** argv) {
+
+	// get device
 	cl_device_id dev;
-	CHECK(clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &dev, 0));
+	get_device(&dev);
 
 	// create context
 	cl_context ctx = clCreateContext(0, 1, &dev, 0, 0, 0);

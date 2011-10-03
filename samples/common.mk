@@ -9,7 +9,7 @@ CFLAGS += -std=c99 -O2
 LIBS += -lgpuvm -lOpenCL
 ifeq ($(OSNAME), Darwin)
   INCLUDE_DIRS += -I/system/library/frameworks/opencl.framework/headers
-  CFLAGS += -m32
+#  CFLAGS += -m32
 endif
 
 build: $(TGT)

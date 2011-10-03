@@ -37,8 +37,8 @@ CFLAGS=-O2
 DL_FLAGS=-fPIC -fvisibility=hidden -shared -Wl,-soname,$(TGT_DL).$(MAJOR_VERSION)
 ifeq ($(OSNAME), Darwin)
 	DL_FLAGS=-fvisibility=hidden -dynamiclib
-# mono is 32-bit on Mac OS X, so change the 'bitness' accordingly
-	CFLAGS+= -m32
+# mono is 32-bit on Mac OS X, so build a fat binary
+	CFLAGS+= -arch i386 -arch x86_64
 endif
 LIBS=-lOpenCL -lpthread
 
@@ -53,8 +53,8 @@ $(TGT) : $(SRC)
 install:	$(TGT)
 	cp $(TGT) $(LIB_PREFIX)
 	cp $(TGT_HEADER) $(HEADER_PREFIX)
-	ln -sf $(PREFIX)/$(TGT_WITH_VERSION) $(PREFIX)/$(TGT_WITH_MAJOR_VERSION)
-	ln -sf $(PREFIX)/$(TGT_WITH_MAJOR_VERSION) $(PREFIX)/$(TGT_DL)
+	ln -sf $(LIB_PREFIX)/$(TGT_WITH_VERSION) $(LIB_PREFIX)/$(TGT_WITH_MAJOR_VERSION)
+	ln -sf $(LIB_PREFIX)/$(TGT_WITH_MAJOR_VERSION) $(LIB_PREFIX)/$(TGT_DL)
 
 doxy:	$(SRC)
 	doxygen doxygen

@@ -8,6 +8,12 @@
 #include "gpuvm.h"
 #include "util.h"
 
+#ifndef __APPLE__
+#define RECURSIVE_MUTEX_ATTR PTHREAD_MUTEX_RECURSIVE_NP
+#else
+#define RECURSIVE_MUTEX_ATTR PTHREAD_MUTEX_RECURSIVE
+#endif
+
 /** global mutex lock */
 pthread_mutex_t mutex_g;
 
@@ -17,7 +23,7 @@ int sync_init() {
 		fprintf(stderr, "sync_init: can\'t init mutex attribute\n");
 		return GPUVM_ERROR;
 	}
-	if(pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE_NP)) {
+	if(pthread_mutexattr_settype(&attr, RECURSIVE_MUTEX_ATTR)) {
 		fprintf(stderr, "sync_init: can\'t set  mutex attribute type\n");
 		pthread_mutexattr_destroy(&attr);
 		return GPUVM_ERROR;
