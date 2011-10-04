@@ -147,6 +147,8 @@ static inline memrange_cmp_t memrange_pos_ptr(const memrange_t* range, const voi
 		returned, as it is always late to handle errors inside signal
 		hander. Supported only on Linux or other OS with /proc FS, and on Darwin
 		using Mach API
+		@remarks on Darwin, currently a no-op, as it doesn't work well with Apple
+		OpenCL implementation
  */
 void stop_other_threads(void);
 
@@ -156,6 +158,8 @@ void stop_other_threads(void);
 		returned, as it is always late to handle errors inside signal
 		hander. Supported only on Linux or other OS with /proc FS, and on Darwin
 		using Mach API
+		@remarks on Darwin, currently a no-op, as it doesn't work well with Apple
+		OpenCL implementation
  */
 void cont_other_threads(void);
 

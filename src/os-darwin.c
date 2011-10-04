@@ -16,6 +16,8 @@
 #include <unistd.h>
 
 void stop_other_threads(void) {
+
+#if 0
 	// get current thread & task
 	mach_port_t my_task = mach_task_self();
 	thread_port_t my_thread = mach_thread_self();
@@ -51,12 +53,12 @@ void stop_other_threads(void) {
 								sizeof(*thread_list) * nthreads);
 	if(error) 
 		fprintf(stderr, "stop_other_threads: can\'t deallocate memory\n");
-	//mach_port_deallocate(my_task, my_thread);
-	//mach_port_deallocate(my_task, my_task);
 	// all other threads have been stopped
+#endif
 }  // stop_other_threads
 
 void cont_other_threads(void) {
+#if 0
 	// get current thread & task
 	mach_port_t my_task = mach_task_self();
 	thread_port_t my_thread = mach_thread_self();
@@ -91,10 +93,8 @@ void cont_other_threads(void) {
 												sizeof(*thread_list) * nthreads);
 	if(error) 
 		fprintf(stderr, "resume_other_threads: can\'t deallocate memory\n");
-	//mach_port_deallocate(my_task, my_thread);
-	//mach_port_deallocate(my_task, my_task);
-
 	// all other threads have been resumed
+#endif
 }
 
 #endif
