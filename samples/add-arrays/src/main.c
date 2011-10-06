@@ -38,9 +38,11 @@
 
 #define COUNT 4
 
-#define N (1024 * 8 + 64)
+#define N (1024 * 13 + 64)
 #define SZ (N * sizeof(int))
+#define NRUNS 1
 
+char special_library[] = "cuda";
 intptr_t amdocl_start = 0, amdocl_end = 0;
 
 /** called for each loaded dynamic library */
@@ -63,7 +65,7 @@ int dl_callback(struct dl_phdr_info *info, size_t size, void *data) {
 	}
 	printf("library address range: [%p, %p)\n", start_addr, end_addr);
 	if(strstr(info->dlpi_name, "amdocl")) {
-		printf("amdocl library is %s\n", info->dlpi_name);
+		printf("%s library is %s\n", special_library, info->dlpi_name);
 		amdocl_start = start_addr;
 		amdocl_end = end_addr;
 	}
@@ -83,7 +85,7 @@ void* my_malloc_hook(size_t size, void *caller) {
 	intptr_t caller_addr = (intptr_t)caller;
 	__malloc_hook = old_malloc_hook;
 	if(amdocl_start <= caller_addr && caller_addr < amdocl_end) {
-		printf("amdocl malloc'ed %td bytes\n", size);
+		printf("%s malloc'ed %td bytes\n", special_library, size);
 	} else {
 		printf("some other library malloc'ed %td bytes\n", size);
 	}
@@ -177,40 +179,43 @@ int main(int argc, char** argv) {
 
 	// before-kernel actions
 	printf("adding arrays\n");
-	//printf("actions on kernel begin\n");
-	CHECK(gpuvm_kernel_begin(ha, 0, GPUVM_READ_WRITE));
-	CHECK(gpuvm_kernel_begin(hb, 0, GPUVM_READ_WRITE));
-	CHECK(gpuvm_kernel_begin(hc, 0, GPUVM_READ_WRITE));
+
+	unsigned irun;
+	for(irun = 0; irun < NRUNS; irun++) {
+		CHECK(gpuvm_kernel_begin(ha, 0, GPUVM_READ_WRITE));
+		CHECK(gpuvm_kernel_begin(hb, 0, GPUVM_READ_WRITE));
+		CHECK(gpuvm_kernel_begin(hc, 0, GPUVM_READ_WRITE));
 	
-	// run program
-	CHECK(clSetKernelArg(kernel, 0, sizeof(cl_mem), &dc));
-	CHECK(clSetKernelArg(kernel, 1, sizeof(cl_mem), &da));
-	CHECK(clSetKernelArg(kernel, 2, sizeof(cl_mem), &db));
-	size_t gws[1] = {N};
-	size_t lws[1] = {64};
-	size_t gwos[1] = {0};
-	CHECK(clEnqueueNDRangeKernel(queue, kernel, 1, gwos, gws, lws, 0, 0, 0));
-	CHECK(clFinish(queue));
+		// run program
+		CHECK(clSetKernelArg(kernel, 0, sizeof(cl_mem), &dc));
+		CHECK(clSetKernelArg(kernel, 1, sizeof(cl_mem), &da));
+		CHECK(clSetKernelArg(kernel, 2, sizeof(cl_mem), &db));
+		size_t gws[1] = {N};
+		size_t lws[1] = {64};
+		size_t gwos[1] = {0};
+		CHECK(clEnqueueNDRangeKernel(queue, kernel, 1, gwos, gws, lws, 0, 0, 0));
+		CHECK(clFinish(queue));
 
-	// on kernel end
-	//printf("actions on kernel end\n");
-	CHECK(gpuvm_kernel_end(ha, 0));
-	CHECK(gpuvm_kernel_end(hb, 0));
-	CHECK(gpuvm_kernel_end(hc, 0));
+		// on kernel end
+		//printf("actions on kernel end\n");
+		CHECK(gpuvm_kernel_end(ha, 0));
+		CHECK(gpuvm_kernel_end(hb, 0));
+		CHECK(gpuvm_kernel_end(hc, 0));
 
-	// evaluate "gold" result
-	for(int i = 0; i < N; i++)
-		hg[i] = ha[i] + hb[i];
+		// evaluate "gold" result
+		for(int i = 0; i < N; i++)
+			hg[i] = ha[i] + hb[i];
 
-	// check result
-	for(int i = 0; i < N; i++) {
-		if(hg[i] != hc[i]) {
-			printf("check: FAILED\n");
-			printf("hg[%d] != hc[%d]: %d != !d\n", i, i, hg[i], hc[i]);
-			exit(-1);
+		// check result
+		for(int i = 0; i < N; i++) {
+			if(hg[i] != hc[i]) {
+				printf("check: FAILED\n");
+				printf("hg[%d] != hc[%d]: %d != !d\n", i, i, hg[i], hc[i]);
+				exit(-1);
+			}
 		}
-	}
-	printf("check: PASSED\n");
+		printf("check: PASSED\n");
+	}  // for(irun)
 
 	// print result
 	printf("printing result\n");
