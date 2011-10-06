@@ -46,8 +46,10 @@ int ocl_sync_to_host(void *hostptr, size_t nbytes, unsigned idev, void *devbuf,
 	cl_command_queue queue = (cl_command_queue)devs_g[idev];
 	cl_mem buffer = (cl_mem)devbuf;
 	cl_event ev = 0;
+	fprintf(stderr, "copying data back\n");
 	int cl_err = clEnqueueReadBuffer(queue, devbuf, CL_TRUE, offset, nbytes,
 										 hostptr, 0, 0, &ev);
+	fprintf(stderr, "copied data back\n");
 	//clFlush(queue);
 	if(cl_err != CL_SUCCESS) {
 		if(cl_err == CL_MEM_OBJECT_ALLOCATION_FAILURE || 

@@ -76,6 +76,8 @@ void call_old_handler(int signum, siginfo_t *siginfo, void *ucontext) {
  */
 void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 
+	fprintf(stderr, "in SIGSEGV handler\n");
+
 	// cut off NULL addresses and signals not caused by mprotect
 	void *ptr = siginfo->si_addr;
 	
@@ -113,9 +115,10 @@ void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 		return;
 	}
 
+	/*
 	if(!in_second_fault)
 		stop_other_threads();
-
+	*/
 	//fprintf(stderr, "region found, removing protection\n");
 	// remove region memory protection
 	region_lock(region);
@@ -147,9 +150,10 @@ void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 				subreg_sync_to_host(list->subreg);				
 		}  // end of while()
 		in_handler_g = 0;
-		cont_other_threads();
+		/*cont_other_threads();*/
 	}  // if(!in_second_fault)
 
 	// release global reader lock
 	sync_unlock();
+	fprintf(stderr, "leaving SIGSEGV handler\n");
 }  // sigsegv_handler()

@@ -2,7 +2,7 @@ TGT=../bin/$(NAME)
 SRC_C=src/*.c
 SRC=src/*.c src/*.h
 TMP=*~ src/*~ $(TGT)
-INCLUDE_DIRS += -I../../src
+#INCLUDE_DIRS += -I../../src
 LIB_DIRS += -L../../bin
 OSNAME:=$(shell uname -s)
 CFLAGS += -std=c99 -O2

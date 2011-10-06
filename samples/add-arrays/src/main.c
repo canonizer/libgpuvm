@@ -1,5 +1,7 @@
 /** OpenCL "hello, world!" sample; adding two arrays */
 
+#define _GNU_SOURCE
+
 #ifdef __APPLE__
   #include <cl.h>
 #else
@@ -7,10 +9,14 @@
 #endif
 #include <stdio.h>
 #include <stdlib.h>
-
-#include <gpuvm.h>
+#include <dlfcn.h>
+#include <elf.h>
+#include <link.h>
+#include <malloc.h>
+#include <mcheck.h>
 #include <unistd.h>
 
+#include "../../../src/gpuvm.h"
 #include "helper.h"
 
 // macros to check for errors
@@ -35,11 +41,70 @@
 #define N (1024 * 8 + 64)
 #define SZ (N * sizeof(int))
 
+intptr_t amdocl_start = 0, amdocl_end = 0;
+
+/** called for each loaded dynamic library */
+int dl_callback(struct dl_phdr_info *info, size_t size, void *data) {
+	// print library data
+	printf("%s loaded at %p with %hd segments\n", info->dlpi_name, 
+				 info->dlpi_addr, info->dlpi_phnum);
+	// iterate through segments
+	unsigned short isegment;
+	intptr_t start_addr = info->dlpi_addr;
+	intptr_t end_addr = 0;
+	for(isegment = 0; isegment < info->dlpi_phnum; isegment++) {
+		printf("\tsegment %hd: start %p, size %ld\n", isegment, 
+					 info->dlpi_addr + info->dlpi_phdr[isegment].p_vaddr, 
+					 info->dlpi_phdr[isegment].p_memsz);
+		intptr_t segment_end_addr = info->dlpi_addr + info->dlpi_phdr[isegment].p_vaddr + 
+			info->dlpi_phdr[isegment].p_memsz;
+		if(segment_end_addr > end_addr)
+			end_addr = segment_end_addr;
+	}
+	printf("library address range: [%p, %p)\n", start_addr, end_addr);
+	if(strstr(info->dlpi_name, "amdocl")) {
+		printf("amdocl library is %s\n", info->dlpi_name);
+		amdocl_start = start_addr;
+		amdocl_end = end_addr;
+	}
+	return 0;
+}
+
+/** print info on dynamically loaded libraries */
+void print_dls() {	
+	dl_iterate_phdr(dl_callback, 0);
+}
+
+/** here the old malloc hook is stored */
+void* (*old_malloc_hook)(size_t size, void *caller);
+
+/** a simple malloc hook printing out memory requests */
+void* my_malloc_hook(size_t size, void *caller) {
+	intptr_t caller_addr = (intptr_t)caller;
+	__malloc_hook = old_malloc_hook;
+	if(amdocl_start <= caller_addr && caller_addr < amdocl_end) {
+		printf("amdocl malloc'ed %td bytes\n", size);
+	} else {
+		printf("some other library malloc'ed %td bytes\n", size);
+	}
+	void *malloc_res = malloc(size);
+	__malloc_hook = my_malloc_hook;
+	return malloc_res;
+}
+
+/** sets malloc hook */
+void set_malloc_hook() {
+	old_malloc_hook = __malloc_hook;
+	__malloc_hook = my_malloc_hook;
+}
+
 void get_device(cl_device_id *pdev) {
 
 	// get platform
 	cl_platform_id platform;
 	CHECK(clGetPlatformIDs(1, &platform, 0));
+
+	print_dls();
 
 	// get device
 	int ndevs = 0;
@@ -53,15 +118,17 @@ void get_device(cl_device_id *pdev) {
 }  // get_device
 
 int main(int argc, char** argv) {
+	
 
 	// get device
 	cl_device_id dev;
 	get_device(&dev);
 
+	set_malloc_hook();
+
 	// create context
 	cl_context ctx = clCreateContext(0, 1, &dev, 0, 0, 0);
 	CHECK_NULL(ctx);
-
 
 	// create queue
 	cl_command_queue queue = clCreateCommandQueue(ctx, dev, 0, 0);
