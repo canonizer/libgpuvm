@@ -30,20 +30,28 @@ enum {
 	/** data are to be used in kernel both for reading and writing */
 	GPUVM_READ_WRITE = 0x30,
 	/** enable collection of statistics on devices */
-	GPUVM_STAT = 0x40
+	GPUVM_STAT = 0x40,
+	/** record list of threads before runtime (OpenCL) initialization */
+	GPUVM_THREADS_BEFORE_INIT = 0x80,
+	/** record list of threads after runtime (OpenCL) initializaiton, and subtract from it
+			the list of threads before initialization, to get the final list of threads which
+			must not be stopped */
+	GPUVM_THREADS_AFTER_INIT = 0x100
 };
 
 /** constants specifying different types of errors */
 enum {
 	/** general error code, if nothing more specific can be provided */
 	GPUVM_ERROR = -1,
-	/** can't allocate separate special memory, or resources for that memory if inside gpuvm_init()*/
+	/** can't allocate separate special memory, or resources for that memory
+			if inside gpuvm_init()*/
 	GPUVM_ESALLOC = -2,
 	/** one of argument is null and it is not allowed */
 	GPUVM_ENULL = -3,
 	/** one of arguments is out of range or is invalid */
 	GPUVM_EARG = -4,
-  /** the call is performed twice while allowed only once, e.g. initialization */
+  /** the call is performed twice while allowed only once, e.g. initialization or
+			recording of initial number of threads */
 	GPUVM_ETWICE = -5,
 	/** the range is already registered with GPUVM */
 	GPUVM_ERANGE = -6,
@@ -57,7 +65,9 @@ enum {
 	/** call setting/removing memory protection fails for some reason */
 	GPUVM_EPROT = -10,
 	/** the array has no link for the specified device */
-	GPUVM_ENOLINK = -11
+	GPUVM_ENOLINK = -11,
+	/** the call is not allowed in this state, or other actions are required */
+	GPUVM_ESTATE = -12
 };
 
 /** possible values, including counters and parameters, which can be obtained using
@@ -71,6 +81,18 @@ enum {
 	/** total copying time (measured by OpenCL) in seconds, double */
 	GPUVM_STAT_COPY_TIME = 3
 };
+
+/** 
+		must be called before and after initialization of OpenCL runtime. The threads which
+		belong to OpenCL runtime will be recorded, and not touched during thread 
+		stopping/starting
+		@param flags must be ::GPUVM_THREADS_BEFORE_INIT if called before OpenCL runtime
+		initialization, and ::GPUVM_THREADS_AFTER_INIT if called after OpenCL runtime
+		initialization
+		@return 0 if successful and error code if not
+ */
+__attribute__((visibility("default")))
+int gpuvm_pre_init(int flags);
 
 /** 
 		gets whether GPUVM library exists in the system. This is the only method which can be

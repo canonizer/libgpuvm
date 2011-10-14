@@ -8,6 +8,7 @@
   #include <CL/cl.h>
 #endif
 #include <stdio.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <dlfcn.h>
 #include <elf.h>
@@ -106,7 +107,7 @@ void get_device(cl_device_id *pdev) {
 	cl_platform_id platform;
 	CHECK(clGetPlatformIDs(1, &platform, 0));
 
-	print_dls();
+	//print_dls();
 
 	// get device
 	int ndevs = 0;
@@ -121,12 +122,11 @@ void get_device(cl_device_id *pdev) {
 
 int main(int argc, char** argv) {
 	
-
+	CHECK(gpuvm_pre_init(GPUVM_THREADS_BEFORE_INIT));
 	// get device
 	cl_device_id dev;
 	get_device(&dev);
-
-	set_malloc_hook();
+	//set_malloc_hook();
 
 	// create context
 	cl_context ctx = clCreateContext(0, 1, &dev, 0, 0, 0);
@@ -135,6 +135,7 @@ int main(int argc, char** argv) {
 	// create queue
 	cl_command_queue queue = clCreateCommandQueue(ctx, dev, 0, 0);
 	CHECK_NULL(queue);
+	CHECK(gpuvm_pre_init(GPUVM_THREADS_AFTER_INIT));
 
 	// create program and kernel
 	char **sourceLines;
@@ -162,6 +163,12 @@ int main(int argc, char** argv) {
 		ha[i] = i;
 		hb[i] = i + 1;
 	}
+
+	// unblock signals in entire process
+	sleep(1);
+	sigset_t set;
+	//sigemptyset(&set);
+	//sigprocmask(SIG_SETMASK, &set, 0);
 
 	// allocate device data
 	cl_mem da = clCreateBuffer(ctx, 0, SZ, 0, 0);

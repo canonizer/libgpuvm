@@ -2,7 +2,7 @@
 #define _GPUVM_UTIL_H_
 
 /** @file util.h
-		this file contains interface to utility functions used by many parts of GPVM
+		this file contains interface to utility functions used by many parts of GPUVM
 		implementation, such as special allocator, global synchronization etc. 
 
  */
@@ -139,6 +139,51 @@ static inline memrange_cmp_t memrange_pos_ptr(const memrange_t* range, const voi
 /** @} */
 
 /** @{ */
+
+/** "OS-independent OS-specific" thread type. Different values of this type correspond to
+		different threads, and can be directly compared for (in)equality. Typically (though
+		not guaranteed), it is an integer, which identifies the thread in OS */
+#ifdef __APPLE__
+#include <mach/mach.h>
+typedef thread_port_t thread_t; 
+#else
+#include <sys/types.h>
+typedef pid_t thread_t;
+#endif
+
+// maximum number of threads tracked (linux)
+#define MAX_NTHREADS 256
+
+/** "immune" threads, i.e. threads which must not be stopped during transfer */
+extern thread_t immune_threads_g[MAX_NTHREADS];
+
+/** number of "immune" threads */
+extern unsigned immune_nthreads_g;
+
+/** 
+		gets the list of OS-specific thread identifiers of the current
+		process. Memory for the identifiers is allocated dynamically as
+		needed. Therefore, this function can't be called from inside main libgpuvm
+		code; it can only be called from pre-initialization phase
+		@param [out] pthreads pointer to array of threads if successful, and undefined if
+		not
+		@returns the number of threads if successful and a negative error code if not
+ */
+int get_threads(thread_t **pthreads);
+
+/** 
+		computes difference between two thread sets 
+		@param [out] prthreads pointer to the resulting set of threads, that 
+		is, threads which are present in athreads and not present in bthreads 
+		@param athreads the first set of threads 
+		@param anthreads number of threads in the first set 
+		@param bthreads	the second set of threads 
+		@param bnthreads the number of threads in the	second set 
+		@returns the number of threads in the difference set if	successful and 
+		a negative error code if not
+ */
+int threads_diff(thread_t **prthreads, thread_t *athreads, unsigned anthreads, 
+								 thread_t *bthreads, unsigned bnthreads);
 
 /** 
 		stops all threads except for the caller thread. Used to prevent false

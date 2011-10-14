@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <gpuvm.h>
+#include "../../../src/gpuvm.h"
 
 #include "helper.h"
 
@@ -145,6 +145,7 @@ int main(int argc, char** argv) {
 		hb[i] = i + 1;
 	}
 
+	CHECK(gpuvm_pre_init(GPUVM_THREADS_BEFORE_INIT));
 	get_devices(devs);
 
 	for(int igpu = 0; igpu < NGPUS; igpu++) {
@@ -170,6 +171,8 @@ int main(int argc, char** argv) {
 		kernels[igpu] = clCreateKernel(programs[igpu], "add_arrays", 0);
 		CHECK_NULL(kernels[igpu]);
 	}  // for(igpu)
+
+	CHECK(gpuvm_pre_init(GPUVM_THREADS_AFTER_INIT));
 
 	// initialize GPUVM
 	CHECK(gpuvm_init(NGPUS, (void**)queues, GPUVM_OPENCL));

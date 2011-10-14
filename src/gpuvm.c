@@ -1,6 +1,7 @@
 /** @file gpuvm.c implementation of public GPUVM interface, except for stat collection */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "gpuvm.h"
@@ -13,9 +14,69 @@
 unsigned ndevs_g = 0;
 void **devs_g = 0;
 
+/** threads allocated before runtime */
+static thread_t *pre_runtime_threads_g = 0;
+static unsigned pre_runtime_nthreads_g = 0;
+
 int gpuvm_library_exists() {
 	return 1;
 }  // gpuvm_library_exists
+
+int gpuvm_pre_init(int flags) {
+	if(flags != GPUVM_THREADS_BEFORE_INIT && 
+		 flags != GPUVM_THREADS_AFTER_INIT) {
+		fprintf(stderr, "gpuvm_pre_init: invalid flags\n");
+		return GPUVM_EARG;
+	}
+	if(flags == GPUVM_THREADS_BEFORE_INIT) {
+		// case before OpenCL initialization
+		if(pre_runtime_threads_g)	{		
+			free(pre_runtime_threads_g);
+			pre_runtime_threads_g = 0;
+			pre_runtime_nthreads_g = 0;
+		}
+		int pre_runtime_nthreads = get_threads(&pre_runtime_threads_g);
+		if(pre_runtime_nthreads < 0)
+			return -1;
+		pre_runtime_nthreads_g = pre_runtime_nthreads;
+		//fprintf(stderr, "%d threads before OpenCL runtime init\n", 
+		//				pre_runtime_nthreads_g);
+		return 0;
+	} else if(flags == GPUVM_THREADS_AFTER_INIT) {
+		// case after OpenCL initialization
+		if(!pre_runtime_threads_g) {
+			fprintf(stderr, "gpuvm_pre_init: list of threads must be recorded "
+							"first\n");
+			return GPUVM_ESTATE;			
+		}
+		thread_t *after_runtime_threads, *diff_threads;
+		// get new threads
+		int after_runtime_nthreads = get_threads(&after_runtime_threads);
+		if(after_runtime_nthreads < 0)
+			return after_runtime_nthreads;
+		//fprintf(stderr, "%d threads after OpenCL runtime init\n", 
+		//				after_runtime_nthreads);
+		// get difference
+		int diff_nthreads = threads_diff
+			(&diff_threads, after_runtime_threads, after_runtime_nthreads,
+			 pre_runtime_threads_g, pre_runtime_nthreads_g);
+		if(diff_nthreads < 0) {
+			free(after_runtime_threads);
+			return diff_nthreads;
+		}
+		// save difference as "immune threads"
+		if(diff_nthreads > MAX_NTHREADS) {
+			fprintf(stderr, "gpuvm_pre_init: too many immune threads\n");
+			return -1;
+		}
+		immune_nthreads_g = diff_nthreads;
+		//fprintf(stderr, "immune_nthreads_g = %d\n", immune_nthreads_g);
+		memcpy(immune_threads_g, diff_threads, immune_nthreads_g * sizeof(thread_t));
+		free(after_runtime_threads);
+		free(diff_threads);
+		return 0;
+	}  // if(flags == ...)
+}
 
 int gpuvm_init(unsigned ndevs, void **devs, int flags) {
 	// check arguments

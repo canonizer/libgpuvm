@@ -10,19 +10,17 @@
 #include <sys/types.h>
 #include <sys/syscall.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 #include "gpuvm.h"
 #include "util.h"
 
-// maximum number of threads tracked (linux)
-#define MAX_NTHREADS 256
-
 // maximum path length for directories in /proc
 #define MAX_PROC_PATH 127
 
-// buffer size for internal needs
+// buffer size for some internal needs
 #define BUFFER_SIZE 64
 
 /** array of threads stopped by libgpuvm, linux only */
@@ -41,19 +39,65 @@ static int tgkill(int tgid, int tid, int sig) {
 	return syscall(SYS_tgkill, tgid, tid, sig);
 }
 
+int get_threads(thread_t **pthreads) {
+	char task_dir_path[] = "/proc/self/task";
+	DIR *task_dir = opendir(task_dir_path);
+	if(!task_dir) {
+		fprintf(stderr, "get_threads: can\'t open %s\n", task_dir_path);
+		return -1;
+	}
+
+	// count threads
+	unsigned nthreads = 0;
+	while(readdir(task_dir)) nthreads++;
+	// subtract . and ..
+	nthreads -= 2;
+	
+	// fill in thread numbers
+	rewinddir(task_dir);
+	thread_t *threads = (thread_t*)malloc(sizeof(thread_t) * nthreads);
+	if(!threads) {
+		fprintf(stderr, "get_threads: can\'t allocate memory for thread ids\n");
+		closedir(task_dir);
+		return -1;
+	}
+	struct dirent *thread_dir;
+	unsigned ithread = 0;
+	while(thread_dir = readdir(task_dir)) {
+		if(!strcmp(thread_dir->d_name, ".") || !strcmp(thread_dir->d_name, "..")) 
+			continue;
+		int thread_id;
+		if(sscanf(thread_dir->d_name, "%d", &thread_id) < 1) {
+			fprintf(stderr, "get_threads: invalid thread id %s\n",
+							thread_dir->d_name);
+			free(threads);
+			closedir(task_dir);
+			return -1;
+		}
+		threads[ithread++] = (thread_t)thread_id;
+	}  // while(readdir)
+	closedir(task_dir);
+	*pthreads = threads;
+	return nthreads;
+}  // get_threads
+
 /** checks whether the thread must be stopped; the thread is identified by its tid;
 		linux only 
-		@param pid process id of the current process
 		@param tid thread id of the thread to be checked
 		@returns non-zero if the thread must be stopped and zero if not
 		@remarks a zombie thread must not be stopped, and will never change to
-		stopped state; a stopped thread needn't be stopped; a non-stopped thread
-		must be stopped, however
+		stopped state; a stopped thread needn't be stopped; an "immune" thread
+		needn't be stopped either; a non-stopped thread must otherwise be stopped, however
 */
-static int thread_must_be_stopped(pid_t pid, pid_t tid) {
+static int thread_must_be_stopped(thread_t tid) {
+	// check for immunity
+	int ithread;
+	for(ithread = 0; ithread < immune_nthreads_g; ithread++) 
+		if(immune_threads_g[ithread] == tid)
+			return 0;
+	// check thread state
 	char thread_stat_path[MAX_PROC_PATH + 1];
-	snprintf(thread_stat_path, MAX_PROC_PATH + 1, "/proc/%d/task/%d/stat", 
-					 (int)pid, (int)tid);
+	snprintf(thread_stat_path, MAX_PROC_PATH + 1, "/proc/self/task/%d/stat", (int)tid);
 	int stat_fd = open(thread_stat_path, O_RDONLY, 0);
 	if(stat_fd >= 0) {
 		// scanf can't be used, as it requires FILE*, which must be malloc'ed, so we
@@ -85,7 +129,7 @@ static int thread_must_be_stopped(pid_t pid, pid_t tid) {
 							(int)tid);
 			return 0;
 		} else 
-			return thread_state == 'Z' || thread_state == 'S';
+			return thread_state != 'Z' && thread_state != 'S';
 	} else
 		return 0;
 }  // thread_must_be_stopped
@@ -94,13 +138,12 @@ void stop_other_threads(void) {
 
 	nstopped_threads_g = 0;
 	// get current thread id and process id's
-	pid_t my_tid = gettid();
+	thread_t my_tid = gettid();
 	pid_t my_pid = getpid();
 
 	// directory of threads for the current process
-	char task_dir_path[MAX_PROC_PATH + 1];
-	memset(task_dir_path, 0, MAX_PROC_PATH + 1);
-	snprintf(task_dir_path, MAX_PROC_PATH + 1, "/proc/%d/task", (int)my_pid);
+	char task_dir_path[] = "/proc/self/task";
+	// indicates first iteration of "stopping threads"
 	int stop_every_thread = 1;
 	int running_thread_found = 1;
 	while(running_thread_found) {
@@ -114,15 +157,15 @@ void stop_other_threads(void) {
 			if(sscanf(thread_dirent->d_name, "%d", &other_tid))	{
 				if((pid_t)other_tid == my_tid)
 					continue;
-				int stop_this_thread = stop_every_thread;
-				if(!stop_every_thread) {
+				//int stop_this_thread = stop_every_thread;
+				//if(!stop_every_thread) {
 					// check status of this thread
 					// TODO: do the actual check - currently simply assume it is not needed
-					stop_this_thread = thread_must_be_stopped(my_pid, other_tid);
-				}
+				int stop_this_thread = thread_must_be_stopped(other_tid);
+					//}
 				if(stop_this_thread) {
 					running_thread_found = 1;
-					tgkill(-1, (pid_t)other_tid, SIGSTOP);
+					tgkill(my_pid, (pid_t)other_tid, SIGSTOP);
 					// add to array of stopped threads
 					int must_add_to_stopped = 1;
 					unsigned ithread;
@@ -155,10 +198,11 @@ void stop_other_threads(void) {
 }  // stop_other_threads()
 
 void cont_other_threads(void) {
+	pid_t my_pid = getpid();
 	// get current thread id and process id's
 	unsigned ithread;
 	for(ithread = 0; ithread < nstopped_threads_g; ithread++)
-		tgkill(-1, stopped_threads_g[ithread], SIGCONT);
+		tgkill(my_pid, stopped_threads_g[ithread], SIGCONT);
 	nstopped_threads_g = 0;
 	// stopped threads have been resumed
 }  // cont_other_threads
