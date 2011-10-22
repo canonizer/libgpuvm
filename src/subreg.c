@@ -103,109 +103,78 @@ static int subreg_link_sync_to_host(const subreg_t *subreg, const link_t* link) 
 
 int subreg_sync_to_device(subreg_t *subreg, unsigned idev) {
 	int err;
+#if 0
 	if(err = subreg_lock(subreg))
 		return err;
+#endif
 	if(!((subreg->actual_mask >> idev) & 1ul)) {
 		// need to copy to device
 		// lock region and remove protection if it is in place
 		region_t *region = subreg->region;
+		host_array_t* host_array = subreg->host_array;
+#if 0
 		if(err = region_lock(region)) {
 			subreg_unlock(subreg);
 			return err;
 		}
-		// TODO: rewrite it to handle multiple threads
-		
-		int region_protected = region_is_protected(region);
-		if(region_protected) {
-			if(err = region_unprotect(region)) {
-				region_unlock(region);
-				subreg_unlock(subreg);
-				return err;
-			}
-		}
-
-		host_array_t *host_array = subreg->host_array;
-		if(!subreg->actual_host && subreg->actual_device != NO_ACTUAL_DEVICE) {
-			// need to copy to host from other device first
-			if(err = subreg_link_sync_to_host(subreg, host_array->links[subreg->actual_device])) {
-				if(region_protected) 
-					region_protect(region);
-				region_unlock(region);
-				subreg_unlock(subreg);
-				return err;
-			}
-			subreg->actual_host = 1;
-		}
+#endif
+		// "remove" protection by causing segmentation fault if region is protected
+		err += *(char*)subreg->range.ptr;
 		
 		// need to copy from host to this device
 		if(err = subreg_link_sync_to_device(subreg, host_array->links[idev])) {
-			if(region_protected)
-				region_protect(region);
+#if 0
 			region_unlock(region);
 			subreg_unlock(subreg);
+#endif
 			return err;
 		}
+		// TODO: check these things for atomicity
 		subreg->actual_device = idev;
 		subreg->actual_mask |= 1ul << idev;
 
-		// restore protection state & locks
-		if(region_protected) {
-			if(err = region_protect(region)) {
-				region_unlock(region);
-				subreg_unlock(subreg);
-				return err;
-			}
-		}
-		
+#if 0
 		if(err = region_unlock(region)) {
 			subreg_unlock(subreg);
 			return err;
 		}
-		region_unlock(region);
+#endif
 	}  // if already on device
+#if 0
 	if(err = subreg_unlock(subreg))
 		return err;
+#endif
 	return 0;
-}  // subreg_sync_to_host
+}  // subreg_sync_to_device
 
 int subreg_sync_to_host(subreg_t *subreg) {
 	int err;
-	//if(subreg->actual_host)
-	//	return 0;
+#if 0
 	if(err = subreg_lock(subreg))
 		return err;
-	
+#endif
+
 	// check if already on host
 	if(!subreg->actual_host) {
 		// have to copy from actual device
 		unsigned idev = subreg->actual_device;
 		host_array_t *host_array = subreg->host_array;
 
+#if 0
 		// lock region
-		//fprintf(stderr, "locking region\n");
 		region_t *region = subreg->region;
 		if(err = region_lock(region)) {
 			subreg_unlock(subreg);
 			return err;
 		}
-
-		// remove region protection of necessary
-		int region_protected = region_is_protected(region);
-		if(region_protected) {
-			if(err = region_unprotect(region)) {
-				region_unlock(region);
-				subreg_unlock(subreg);
-				return err;
-			}
-		}
+#endif
 
 		// do actualy copying
-		//fprintf(stderr, "doing copying\n");
 		if(err = subreg_link_sync_to_host(subreg, host_array->links[idev])) {
-			if(region_protected) 
-				region_unprotect(region);
+#if 0
 			region_unlock(region);
 			subreg_unlock(subreg);
+#endif
 			return err;
 		}
 		// if anything is copied to host, device state loses actuality
@@ -213,26 +182,18 @@ int subreg_sync_to_host(subreg_t *subreg) {
 		subreg->actual_device = NO_ACTUAL_DEVICE;
 		subreg->actual_mask = 0ul;
 		
-		// remove locks and return protection
-		//fprintf(stderr, "setting protection back if needed\n");
-		if(region_protected) {
-			if(err = region_protect(region)) {
-				region_unlock(region);
-				subreg_unlock(subreg);
-				return err;
-			}
-		}  // if(protected)
-
-		//fprintf(stderr, "unlocking region\n");
+#if 0
 		if(err = region_unlock(region)) {
 			subreg_unlock(subreg);
 			return err;
 		}
-	}
+#endif
+	}  // if(!actual_on_host)
 	
-	//fprintf(stderr, "unlocking subregion\n");
+#if 0
 	if(err = subreg_unlock(subreg))
 		return err;
+#endif
 	return 0;
 }  // subreg_sync_to_host
 
@@ -249,18 +210,23 @@ int subreg_after_kernel(subreg_t *subreg, unsigned idev) {
 
 	// lock region
 	region_t *region = subreg->region;
+#if 0
 	if(err = region_lock(region)) {
 		subreg_unlock(subreg);
 		return err;
 	}
+#endif
 
 	// turn on region memory protection
 	if(err = region_protect(region)) {
+#if 0
 		region_unlock(region);
 		subreg_unlock(subreg);
+#endif
 		return err;
 	}
 
+#if 0
 	// unlock region
 	if(err = region_unlock(region)) {
 		subreg_unlock(subreg);
@@ -270,5 +236,6 @@ int subreg_after_kernel(subreg_t *subreg, unsigned idev) {
 	// unlock subregion
 	if(err = subreg_unlock(subreg))
 		return err;
+#endif
 	return 0;
 }  // subreg_after_kernel

@@ -105,7 +105,8 @@ int gpuvm_init(unsigned ndevs, void **devs, int flags) {
 	(err = sync_init()) || 
 		(err = salloc_init()) || 
 		(err = handler_init()) || 
-		(err = stat_init(flags & GPUVM_STAT));
+		(err = stat_init(flags & GPUVM_STAT)) || 
+		(err = wthreads_init());
 	if(err)
 		return err;
 
@@ -119,7 +120,6 @@ int gpuvm_init(unsigned ndevs, void **devs, int flags) {
 }  // gpuvm_init
 
 int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int flags) {
-
 	// check arguments
 	if(!hostptr) {
 		fprintf(stderr, "gpuvm_link: hostptr is NULL\n");
@@ -270,8 +270,8 @@ int gpuvm_kernel_end(void *hostptr, unsigned idev) {
 		return GPUVM_EARG;
 	}
 	
-	// lock for reader
-	if(lock_reader())
+	// lock for writer
+	if(lock_writer())
 		return GPUVM_ERROR;
 
 	// find host array

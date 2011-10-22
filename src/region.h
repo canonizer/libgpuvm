@@ -2,6 +2,7 @@
 #define _GPUVM_REGION_H_
 
 #include <pthread.h>
+#include <semaphore.h>
 #include "util.h"
 
 struct subreg_struct;
@@ -22,8 +23,8 @@ typedef struct region_struct {
 	unsigned nsubregs;
 	/** sorted list of subregions associated with this region */
 	subreg_list_t *subreg_list;
-	/** mutex to lock and unlock the region in a multithreaded environment */
-	// pthread_mutex_t mutex;
+	/** semaphore to signal removal of protection */
+	sem_t unprot_sem;
 } region_t;
 
 /** allocates a new region which consists solely of the specified subregion. Also, assigns
@@ -57,6 +58,20 @@ int region_is_protected(const region_t *region);
 		@returns 0 if successful and a negative error code if not
  */
 int region_unprotect(region_t *region);
+
+/** wait until region will be made unprotected 
+		@param region the region to wait
+		@returns 0 if successful and a negative error code if not
+		@remarks mainly used inside signal handler to wait for protection removal
+ */
+int region_wait_unprotect(region_t *region);
+
+/** post the event indicating region unprotection
+		@param region the region to wait
+		@returns 0 if successful and a negative error code if not
+		@remarks mainly used inside unprot worker thread to signal protection removal
+*/
+int region_post_unprotect(region_t *region);
 
 /** adds a subregion to region
 		@param region the region to which a subregion is being added

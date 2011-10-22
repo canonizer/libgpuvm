@@ -5,11 +5,11 @@ TMP=*~ src/*~ $(TGT)
 #INCLUDE_DIRS += -I../../src
 LIB_DIRS += -L../../bin
 OSNAME:=$(shell uname -s)
-CFLAGS += -std=c99 -O2
+# TODO: remove -m32
+CFLAGS += -std=c99 -O2 -m32
 LIBS += -lgpuvm -lOpenCL
 ifeq ($(OSNAME), Darwin)
   INCLUDE_DIRS += -I/system/library/frameworks/opencl.framework/headers
-#  CFLAGS += -m32
 endif
 
 build: $(TGT)

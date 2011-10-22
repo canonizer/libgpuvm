@@ -17,6 +17,9 @@
 #include <mcheck.h>
 #include <unistd.h>
 
+#include <sys/syscall.h>
+#include <sys/types.h>
+
 #include "../../../src/gpuvm.h"
 #include "helper.h"
 
@@ -42,6 +45,13 @@
 #define N (1024 * 13 + 64)
 #define SZ (N * sizeof(int))
 #define NRUNS 1
+
+#ifndef __APPLE__
+/** wrapper for gettid syscall */
+static pid_t gettid(void) {
+	return (pid_t)syscall(SYS_gettid);
+}
+#endif
 
 char special_library[] = "cuda";
 intptr_t amdocl_start = 0, amdocl_end = 0;
@@ -120,6 +130,24 @@ void get_device(cl_device_id *pdev) {
 	}
 }  // get_device
 
+void event_callback(cl_event event, int event_status, void *user_data) {
+	//printf("event callback called from thread %d\n", (int)gettid());
+	//printf("process id is %d\n", (int)getpid());
+	sigset_t signal_mask;
+	sigemptyset(&signal_mask);
+	sigaddset(&signal_mask, SIGSEGV);
+	sigprocmask(SIG_UNBLOCK, &signal_mask, 0);
+}
+
+/** try to execute our code on OpenCL working thread */
+void event_hack(cl_context ctx, cl_command_queue queue) {
+	cl_event ev;
+	CHECK(clEnqueueMarker(queue, &ev));
+	CHECK(clSetEventCallback(ev, CL_COMPLETE, event_callback, 0));
+	CHECK(clFlush(queue));
+	clReleaseEvent(ev);
+}  // event_hack
+
 int main(int argc, char** argv) {
 	
 	CHECK(gpuvm_pre_init(GPUVM_THREADS_BEFORE_INIT));
@@ -135,6 +163,8 @@ int main(int argc, char** argv) {
 	// create queue
 	cl_command_queue queue = clCreateCommandQueue(ctx, dev, 0, 0);
 	CHECK_NULL(queue);
+	event_hack(ctx, queue);
+
 	CHECK(gpuvm_pre_init(GPUVM_THREADS_AFTER_INIT));
 
 	// create program and kernel
@@ -163,12 +193,6 @@ int main(int argc, char** argv) {
 		ha[i] = i;
 		hb[i] = i + 1;
 	}
-
-	// unblock signals in entire process
-	sleep(1);
-	sigset_t set;
-	//sigemptyset(&set);
-	//sigprocmask(SIG_SETMASK, &set, 0);
 
 	// allocate device data
 	cl_mem da = clCreateBuffer(ctx, 0, SZ, 0, 0);
@@ -217,7 +241,7 @@ int main(int argc, char** argv) {
 		for(int i = 0; i < N; i++) {
 			if(hg[i] != hc[i]) {
 				printf("check: FAILED\n");
-				printf("hg[%d] != hc[%d]: %d != !d\n", i, i, hg[i], hc[i]);
+				printf("hg[%d] != hc[%d]: %d != %d\n", i, i, hg[i], hc[i]);
 				exit(-1);
 			}
 		}

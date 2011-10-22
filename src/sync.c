@@ -15,30 +15,18 @@
 #endif
 
 /** global mutex lock */
-pthread_mutex_t mutex_g;
+pthread_rwlock_t mutex_g;
 
 int sync_init() {
-	pthread_mutexattr_t attr;
-	if(pthread_mutexattr_init(&attr)) {
-		fprintf(stderr, "sync_init: can\'t init mutex attribute\n");
+	if(pthread_rwlock_init(&mutex_g, 0)) {
+		fprintf(stderr, "sync_init: can\'t init rwlock\n");
 		return GPUVM_ERROR;
 	}
-	if(pthread_mutexattr_settype(&attr, RECURSIVE_MUTEX_ATTR)) {
-		fprintf(stderr, "sync_init: can\'t set  mutex attribute type\n");
-		pthread_mutexattr_destroy(&attr);
-		return GPUVM_ERROR;
-	}
-	if(pthread_mutex_init(&mutex_g, &attr)) {
-		fprintf(stderr, "sync_init: can\'t init mutex\n");
-		pthread_mutexattr_destroy(&attr);
-		return GPUVM_ERROR;
-	}
-	pthread_mutexattr_destroy(&attr);
 	return 0;
 }
 
 int lock_reader() {
-	if(pthread_mutex_lock(&mutex_g)) {
+	if(pthread_rwlock_rdlock(&mutex_g)) {
 		fprintf(stderr, "lock_reader: reader can\'t lock\n");
 		return GPUVM_ERROR;
 	}
@@ -46,7 +34,7 @@ int lock_reader() {
 }
 
 int lock_writer() {
-	if(pthread_mutex_lock(&mutex_g)) {
+	if(pthread_rwlock_wrlock(&mutex_g)) {
 		fprintf(stderr, "lock_writer: writer can\'t lock\n");
 		return GPUVM_ERROR;
 	}
@@ -54,7 +42,7 @@ int lock_writer() {
 }
 
 int sync_unlock() {
-	if(pthread_mutex_unlock(&mutex_g)) {
+	if(pthread_rwlock_unlock(&mutex_g)) {
 		fprintf(stderr, "sync_unlock: reader unlock\n");
 		return GPUVM_ERROR;
 	}

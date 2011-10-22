@@ -5,9 +5,11 @@
 #ifndef __APPLE__
 
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,7 +20,7 @@
 #include "util.h"
 
 // maximum path length for directories in /proc
-#define MAX_PROC_PATH 127
+#define MAX_PROC_PATH 255
 
 // buffer size for some internal needs
 #define BUFFER_SIZE 64
@@ -29,6 +31,60 @@ pid_t stopped_threads_g[MAX_NTHREADS];
 /** number of threads stopped by libgpuvm, linux only */
 unsigned nstopped_threads_g = 0;
 
+/** a structure describing old linux directory entry */
+struct old_linux_dirent {
+	/* inode number */
+	long  d_ino;
+	/* offset to this old_linux_dirent */              
+	off_t d_off;
+	/* length of this d_name */
+	unsigned short d_reclen;  
+	/* filename (null-terminated) */
+	char  d_name[MAX_PROC_PATH+1]; 
+};
+
+/** a variable to store directory entries after my_readdirentname
+		call */
+struct old_linux_dirent old_dirent_g;
+
+/** a wrapper for readdir linux system call (which is man 2, not man 3); see
+		manual pages for comments. This call must be anyway replaced with more
+		modern getdents() */
+static int readdir2(int fd, struct old_linux_dirent *dirent, int count) {
+	return syscall(SYS_readdir, fd, dirent, count);
+}  // readdir2
+
+/** opens directory pointed to by path 
+		@param path null-terminated path to directory to open
+		@returns unix fd of the open directory or -1 in case of failure
+
+ */
+static int my_opendir(const char* path) {
+	return open(path, O_RDONLY | O_DIRECTORY);
+}
+
+/** closes directory descriptor 
+		@param fd directory descriptor previously opened by my_opendir()
+ */
+static void my_closedir(int fd) {
+	close(fd);
+}
+
+/** reads the next directory entry name (including . and ..)
+		@param fd the directory descriptor
+		@returns pointer to the directory name read, or 0 if directory stream ended
+		@remarks this function is neither reenterant nor thread-safe
+ */
+static const char* my_readdirentname(int fd) {
+	if(readdir2(fd, &old_dirent_g, sizeof(old_dirent_g)) > 0) {
+		//fprintf(stderr, "direntname = %s\n", old_dirent_g.d_name);
+		return old_dirent_g.d_name;
+	} else {
+		//fprintf(stderr, "error number = %d\n", errno);
+		return 0;
+	}
+}  // my_readdirentname
+
 /** wrapper for gettid syscall */
 static pid_t gettid(void) {
 	return (pid_t)syscall(SYS_gettid);
@@ -37,6 +93,10 @@ static pid_t gettid(void) {
 /** wrapper for tgkill syscall */
 static int tgkill(int tgid, int tid, int sig) {
 	return syscall(SYS_tgkill, tgid, tid, sig);
+}
+
+thread_t self_thread() {
+	return gettid();
 }
 
 int get_threads(thread_t **pthreads) {
@@ -95,47 +155,13 @@ static int thread_must_be_stopped(thread_t tid) {
 	for(ithread = 0; ithread < immune_nthreads_g; ithread++) 
 		if(immune_threads_g[ithread] == tid)
 			return 0;
-	// check thread state
-	char thread_stat_path[MAX_PROC_PATH + 1];
-	snprintf(thread_stat_path, MAX_PROC_PATH + 1, "/proc/self/task/%d/stat", (int)tid);
-	int stat_fd = open(thread_stat_path, O_RDONLY, 0);
-	if(stat_fd >= 0) {
-		// scanf can't be used, as it requires FILE*, which must be malloc'ed, so we
-		// simply read up to closing ), and then miss the space. Exec names containing 
-		// ')' are unsupported, unfortunately
-		char thread_state = '\0';
-		char buffer[BUFFER_SIZE];
-		int next_char_is_state = 0;
-		unsigned nchars_in_buffer = 0;
-		unsigned buffer_ptr = 0;
-		while(1) {
-			if(buffer_ptr >= nchars_in_buffer) {
-				nchars_in_buffer = read(stat_fd, buffer, BUFFER_SIZE);
-				buffer_ptr = 0;
-				if(!nchars_in_buffer)
-					break;
-			}  // if(read from buffer)
-			char c = buffer[buffer_ptr++];
-			if(next_char_is_state) {
-				thread_state = c;
-				break;
-			} else if(c == ')')
-				next_char_is_state = 1;			
-		}  // while(1)
-		close(stat_fd);
-		if(!thread_state) {
-			fprintf(stderr, "thread_must_be_stopped: stat_fd = %d\n", stat_fd);
-			fprintf(stderr, "thread_must_be_stopped: can\'t get thread %d state\n", 
-							(int)tid);
+	for(ithread = 0; ithread < nstopped_threads_g; ithread++)
+		if(stopped_threads_g[ithread] == tid)
 			return 0;
-		} else 
-			return thread_state != 'Z' && thread_state != 'S';
-	} else
-		return 0;
+	return 1;
 }  // thread_must_be_stopped
 
 void stop_other_threads(void) {
-
 	nstopped_threads_g = 0;
 	// get current thread id and process id's
 	thread_t my_tid = gettid();
@@ -148,47 +174,35 @@ void stop_other_threads(void) {
 	int running_thread_found = 1;
 	while(running_thread_found) {
 		running_thread_found = 0;
-		DIR *task_dir = opendir(task_dir_path);
-		struct dirent *thread_dirent;
-		while(thread_dirent = readdir(task_dir)) {
+		int task_dir_fd = my_opendir(task_dir_path);
+		//struct dirent *thread_dirent;
+		const char *thread_dirent_name;
+		while(thread_dirent_name = my_readdirentname(task_dir_fd)) {
 			int other_tid;
-			if(!strcmp(thread_dirent->d_name, ".") || !strcmp(thread_dirent->d_name, ".."))
+			if(!strcmp(thread_dirent_name, ".") || !strcmp(thread_dirent_name, ".."))
 				continue;
-			if(sscanf(thread_dirent->d_name, "%d", &other_tid))	{
+			if(sscanf(thread_dirent_name, "%d", &other_tid))	{
 				if((pid_t)other_tid == my_tid)
 					continue;
-				//int stop_this_thread = stop_every_thread;
-				//if(!stop_every_thread) {
-					// check status of this thread
-					// TODO: do the actual check - currently simply assume it is not needed
 				int stop_this_thread = thread_must_be_stopped(other_tid);
-					//}
 				if(stop_this_thread) {
 					running_thread_found = 1;
-					tgkill(my_pid, (pid_t)other_tid, SIGSTOP);
-					// add to array of stopped threads
-					int must_add_to_stopped = 1;
-					unsigned ithread;
-					for(ithread = 0; ithread < nstopped_threads_g; ithread++)
-						if(stopped_threads_g[ithread] == other_tid) {
-							must_add_to_stopped = 0;
-							break;
-						}
-					if(must_add_to_stopped) {
-						if(nstopped_threads_g < MAX_NTHREADS) {
-							stopped_threads_g[nstopped_threads_g] = other_tid;
-							nstopped_threads_g++;
-						} else {
-							fprintf(stderr, "stop_other_threads: too many threads, some may "
-											"fail to resume\n");
-						}
-					}  // if(must_add_to_stopped)
+					//fprintf(stderr, "stopping thread %d\n", other_tid);
+					tgkill(my_pid, (pid_t)other_tid, SIG_SUSP);
+					if(nstopped_threads_g < MAX_NTHREADS) {
+						stopped_threads_g[nstopped_threads_g] = other_tid;
+						nstopped_threads_g++;
+					} else {
+						fprintf(stderr, "stop_other_threads: too many threads, some may "
+										"fail to resume\n");
+					}
 				}  // if(stop_this_thread)
 			} else {
 				fprintf(stderr, "stop_other_threads: %s: non-numeric subdir of thread dir "
-								"found\n", thread_dirent->d_name);
+								"found\n", thread_dirent_name);
 			}  // if(other_tid)
 		}  // while(thread_dirent)
+		my_closedir(task_dir_fd);
 		if(stop_every_thread) {
 			stop_every_thread = 0;
 			running_thread_found = 1;
@@ -198,11 +212,10 @@ void stop_other_threads(void) {
 }  // stop_other_threads()
 
 void cont_other_threads(void) {
-	pid_t my_pid = getpid();
 	// get current thread id and process id's
 	unsigned ithread;
 	for(ithread = 0; ithread < nstopped_threads_g; ithread++)
-		tgkill(my_pid, stopped_threads_g[ithread], SIGCONT);
+		self_block_post();
 	nstopped_threads_g = 0;
 	// stopped threads have been resumed
 }  // cont_other_threads

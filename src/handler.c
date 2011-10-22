@@ -1,4 +1,5 @@
 #include <pthread.h>
+#include <semaphore.h>
 #include <signal.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -10,6 +11,7 @@
 #include "region.h"
 #include "subreg.h"
 #include "util.h"
+#include "wthreads.h"
 
 #ifdef __APPLE__
 #define SIG_PROT SIGBUS
@@ -17,24 +19,14 @@
 #define SIG_PROT SIGSEGV
 #endif
 
-// maximum number of nested SIGSEGVs handled + 1
-#define MAX_REGION_STACK_SIZE 64
-
-
 /** the old handler */
 void (*old_handler_g)(int, siginfo_t*, void*);
 
-/** whether SIGSEGV occured from within SIGSEGV handler; used to detect multiple SIGSEGV 
- */
-volatile int in_handler_g = 0;
-
-/** region stack */
-region_t *region_stack_g[MAX_REGION_STACK_SIZE];
-
-/** pointer to region stack*/
-volatile unsigned region_stack_ptr_g = 0;
-
 void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext);
+void sigsusp_handler(int signum, siginfo_t *siginfo, void *ucontext);
+
+/** a semaphore used to block threads */
+sem_t thread_block_sem;
 
 /** set up the new handler */
 int handler_init() {
@@ -44,6 +36,7 @@ int handler_init() {
 	action.sa_flags = SA_SIGINFO | SA_NODEFER | SA_RESTART;
 	sigfillset(&action.sa_mask);
 	sigdelset(&action.sa_mask, SIGABRT);
+	sigdelset(&action.sa_mask, SIGCONT);
 	sigdelset(&action.sa_mask, SIG_PROT);
 	action.sa_sigaction = sigprot_handler;
 	
@@ -55,7 +48,30 @@ int handler_init() {
 	
 	// remember old handler
 	old_handler_g = old_action.sa_sigaction;
+
+	// set suspension signal handler
+	action.sa_flags = SA_SIGINFO | SA_RESTART;
+	sigfillset(&action.sa_mask);
+	action.sa_sigaction = sigsusp_handler;
+	if(sigaction(SIG_SUSP, &action, 0)) {
+		fprintf(stderr, "handler_init: can\'t set SIG_SUSP handler\n");
+		return GPUVM_ERROR;
+	}
+
+	// initialize thread block semaphore
+	if(sem_init(&thread_block_sem, 0, 0)) {
+		fprintf(stderr, "hander_init: can\'t init thread block semaphore\n");
+		return GPUVM_ERROR;
+	}
 	return 0;
+}  // handler_init
+
+void self_block_wait(void) {
+	sem_wait(&thread_block_sem);
+}
+
+void self_block_post(void) {
+	sem_post(&thread_block_sem);
 }
 
 /** the function to call old handler */
@@ -76,8 +92,9 @@ void call_old_handler(int signum, siginfo_t *siginfo, void *ucontext) {
  */
 void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 
-	//fprintf(stderr, "in SIGSEGV handler\n");
+	// TODO: pass info about the thread which caused the exception to the main 
 
+	//fprintf(stderr, "in SIGSEGV handler\n");
 	// cut off NULL addresses and signals not caused by mprotect
 	void *ptr = siginfo->si_addr;
 	
@@ -95,63 +112,31 @@ void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 	// acquire global reader lock
 	lock_reader();
 
-	// check if this is a second segmentation fault
-	int in_second_fault = 0;
-	if(in_handler_g) {
-		in_second_fault = 1;
-		//fprintf(stderr, "sigsegv_handler: second segmentation fault, ptr = %tx\n", ptr);
-	}
-
-	in_handler_g = 1;
-
 	// check if we handle the SIG_PROT address
 	region_t *region = region_find_region(ptr);
 	if(!region) {
-		if(!in_second_fault)
-			in_handler_g = 0;
 		// we don't handle the address
 		sync_unlock();
 		call_old_handler(signum, siginfo, ucontext);
 		return;
 	}
 
-	if(!in_second_fault)
-		stop_other_threads();
-	//fprintf(stderr, "region found, removing protection\n");
-	// remove region memory protection
-	region_lock(region);
-	region_unprotect(region);
-	region_unlock(region);
+	// queue the region & wait for removal of protection
+	// note that we don't need to wait further:
+	// - OpenCL and GPUVM threads ("immune") mustn't wait, as they do not use
+	// protected arrays, and stopping them may cause deadlocks
+	// - application threads needn't wait as they're stopped anyway
+	wthreads_put_region(region);
+	region_wait_unprotect(region);
 
-	if(in_second_fault) {
-		if(region_stack_ptr_g >= MAX_REGION_STACK_SIZE) {
-			fprintf(stderr, "sigprot_hander: region stack size exceeded, aborting\n");
-			abort();
-		}
-		// push region into the stack
-		//in_handler_g = 0;
-		region_stack_g[region_stack_ptr_g++] = region;
-	}
-
-	//fprintf(stderr, "copying data back\n");
-	// sync all subregions of current region to host
-	subreg_list_t *list;
-	if(!in_second_fault) {
-		for(list = region->subreg_list; list; list = list->next)
-			subreg_sync_to_host(list->subreg);
-
-		// handle additional regions from the stack
-		region_t *stack_region;
-		while(region_stack_ptr_g > 0) {
-			stack_region = region_stack_g[--region_stack_ptr_g];
-			for(list = stack_region->subreg_list; list; list = list->next)
-				subreg_sync_to_host(list->subreg);				
-		}  // end of while()
-		in_handler_g = 0;
-		cont_other_threads();
-	}  // if(!in_second_fault)
-
-	// release global reader lock
+	// it is safe to continue now
 	sync_unlock();
+
 	//fprintf(stderr, "leaving SIGSEGV handler\n");
 }  // sigsegv_handler()
+
+void sigsusp_handler(int signum, siginfo_t *siginfo, void *ucontext) {
+	// test implementation - just sleep it out
+	// sleep(1);
+	self_block_wait();
+}

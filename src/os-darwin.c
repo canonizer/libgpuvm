@@ -15,6 +15,10 @@
 #include <stdio.h>
 #include <unistd.h>
 
+thread_t self_thread() {
+	return mach_thread_self();
+}
+
 void stop_other_threads(void) {
 
 #if 0

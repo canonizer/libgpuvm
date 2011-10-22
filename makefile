@@ -33,14 +33,15 @@ ifeq ($(OSNAME), Darwin)
 	INCLUDE_DIRS=-I/system/library/frameworks/opencl.framework/headers
 endif
 CC=gcc
-CFLAGS=-O2
+# TODO: remove -m32
+CFLAGS=-O2 -m32
 DL_FLAGS=-fPIC -fvisibility=hidden -shared -Wl,-soname,$(TGT_DL).$(MAJOR_VERSION)
 ifeq ($(OSNAME), Darwin)
 	DL_FLAGS=-fvisibility=hidden -dynamiclib
 # mono is 32-bit on Mac OS X, so build a fat binary
 	CFLAGS+= -arch i386 -arch x86_64
 endif
-LIBS=-lOpenCL -lpthread
+LIBS=-lOpenCL -lpthread -lrt
 
 build : $(TGT)
 

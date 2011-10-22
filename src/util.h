@@ -161,6 +161,12 @@ extern thread_t immune_threads_g[MAX_NTHREADS];
 extern unsigned immune_nthreads_g;
 
 /** 
+		gets OS-independent OS-specific thread identifier of the current thread
+		@returns the thread identifier of the current thread
+*/
+thread_t self_thread();
+
+/** 
 		gets the list of OS-specific thread identifiers of the current
 		process. Memory for the identifiers is allocated dynamically as
 		needed. Therefore, this function can't be called from inside main libgpuvm
@@ -207,6 +213,15 @@ void stop_other_threads(void);
 		OpenCL implementation
  */
 void cont_other_threads(void);
+
+/** blocks the current thread */
+void self_block_wait(void);
+
+/** unblocks the blocked threads */
+void self_block_post(void);
+
+/** thread suspension signal number */
+#define SIG_SUSP (SIGRTMIN + 4)
 
 /** @} */
 
