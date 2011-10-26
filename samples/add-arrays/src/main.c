@@ -10,11 +10,6 @@
 #include <stdio.h>
 #include <signal.h>
 #include <stdlib.h>
-#include <dlfcn.h>
-#include <elf.h>
-#include <link.h>
-#include <malloc.h>
-#include <mcheck.h>
 #include <unistd.h>
 
 #include <sys/syscall.h>
@@ -46,71 +41,6 @@
 #define SZ (N * sizeof(int))
 #define NRUNS 1
 
-#ifndef __APPLE__
-/** wrapper for gettid syscall */
-static pid_t gettid(void) {
-	return (pid_t)syscall(SYS_gettid);
-}
-#endif
-
-char special_library[] = "cuda";
-intptr_t amdocl_start = 0, amdocl_end = 0;
-
-/** called for each loaded dynamic library */
-int dl_callback(struct dl_phdr_info *info, size_t size, void *data) {
-	// print library data
-	printf("%s loaded at %p with %hd segments\n", info->dlpi_name, 
-				 info->dlpi_addr, info->dlpi_phnum);
-	// iterate through segments
-	unsigned short isegment;
-	intptr_t start_addr = info->dlpi_addr;
-	intptr_t end_addr = 0;
-	for(isegment = 0; isegment < info->dlpi_phnum; isegment++) {
-		printf("\tsegment %hd: start %p, size %ld\n", isegment, 
-					 info->dlpi_addr + info->dlpi_phdr[isegment].p_vaddr, 
-					 info->dlpi_phdr[isegment].p_memsz);
-		intptr_t segment_end_addr = info->dlpi_addr + info->dlpi_phdr[isegment].p_vaddr + 
-			info->dlpi_phdr[isegment].p_memsz;
-		if(segment_end_addr > end_addr)
-			end_addr = segment_end_addr;
-	}
-	printf("library address range: [%p, %p)\n", start_addr, end_addr);
-	if(strstr(info->dlpi_name, "amdocl")) {
-		printf("%s library is %s\n", special_library, info->dlpi_name);
-		amdocl_start = start_addr;
-		amdocl_end = end_addr;
-	}
-	return 0;
-}
-
-/** print info on dynamically loaded libraries */
-void print_dls() {	
-	dl_iterate_phdr(dl_callback, 0);
-}
-
-/** here the old malloc hook is stored */
-void* (*old_malloc_hook)(size_t size, void *caller);
-
-/** a simple malloc hook printing out memory requests */
-void* my_malloc_hook(size_t size, void *caller) {
-	intptr_t caller_addr = (intptr_t)caller;
-	__malloc_hook = old_malloc_hook;
-	if(amdocl_start <= caller_addr && caller_addr < amdocl_end) {
-		printf("%s malloc'ed %td bytes\n", special_library, size);
-	} else {
-		printf("some other library malloc'ed %td bytes\n", size);
-	}
-	void *malloc_res = malloc(size);
-	__malloc_hook = my_malloc_hook;
-	return malloc_res;
-}
-
-/** sets malloc hook */
-void set_malloc_hook() {
-	old_malloc_hook = __malloc_hook;
-	__malloc_hook = my_malloc_hook;
-}
-
 void get_device(cl_device_id *pdev) {
 
 	// get platform
@@ -130,31 +60,12 @@ void get_device(cl_device_id *pdev) {
 	}
 }  // get_device
 
-void event_callback(cl_event event, int event_status, void *user_data) {
-	//printf("event callback called from thread %d\n", (int)gettid());
-	//printf("process id is %d\n", (int)getpid());
-	sigset_t signal_mask;
-	sigemptyset(&signal_mask);
-	sigaddset(&signal_mask, SIGSEGV);
-	sigprocmask(SIG_UNBLOCK, &signal_mask, 0);
-}
-
-/** try to execute our code on OpenCL working thread */
-void event_hack(cl_context ctx, cl_command_queue queue) {
-	cl_event ev;
-	CHECK(clEnqueueMarker(queue, &ev));
-	CHECK(clSetEventCallback(ev, CL_COMPLETE, event_callback, 0));
-	CHECK(clFlush(queue));
-	clReleaseEvent(ev);
-}  // event_hack
-
 int main(int argc, char** argv) {
 	
 	CHECK(gpuvm_pre_init(GPUVM_THREADS_BEFORE_INIT));
 	// get device
 	cl_device_id dev;
 	get_device(&dev);
-	//set_malloc_hook();
 
 	// create context
 	cl_context ctx = clCreateContext(0, 1, &dev, 0, 0, 0);
@@ -163,7 +74,6 @@ int main(int argc, char** argv) {
 	// create queue
 	cl_command_queue queue = clCreateCommandQueue(ctx, dev, 0, 0);
 	CHECK_NULL(queue);
-	event_hack(ctx, queue);
 
 	CHECK(gpuvm_pre_init(GPUVM_THREADS_AFTER_INIT));
 

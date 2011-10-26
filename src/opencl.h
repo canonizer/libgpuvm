@@ -9,6 +9,11 @@
 
 struct link_struct;
 
+/** does an AMD initialization hack on AMD GPUs and AMD platforms, and nothing
+		on devices from other manufacturers
+		@returns 0 if successful and a negative error code if not */
+int ocl_amd_hack_init(void);
+
 /** copies data from the device buffer to host buffer. This is a blocking copy
 		@param hostptr starting address of the host buffer
 		@param nbytes number of bytes to copy

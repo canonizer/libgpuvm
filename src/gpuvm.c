@@ -115,6 +115,9 @@ int gpuvm_init(unsigned ndevs, void **devs, int flags) {
 	if(!devs_g)
 		return GPUVM_ESALLOC;
 	memcpy(devs_g, devs, ndevs * sizeof(void*));
+
+	// do hack for AMD devices
+	ocl_amd_hack_init();
 	
 	return 0;
 }  // gpuvm_init
