@@ -25,7 +25,7 @@ endif
 TGT=bin/$(TGT_WITH_VERSION)
 TGT_HEADER=src/$(NAME).h
 TMP=$(TGT) *~ src/*~ $(TGT) bin/$(TGT_WITH_MAJOR_VERSION) bin/*.$(DL_SUFFIX) \
-	doc/*/* samples/bin/*
+	doc/*/* samples/bin/* samples/*/*~ samples/*/src/*~
 
 # compilation settings
 INCLUDE_DIRS=
@@ -33,8 +33,7 @@ ifeq ($(OSNAME), Darwin)
 	INCLUDE_DIRS=-I/system/library/frameworks/opencl.framework/headers
 endif
 CC=gcc
-# TODO: remove -m32
-CFLAGS=-O2 -m32
+CFLAGS=-O2
 DL_FLAGS=-fPIC -fvisibility=hidden -shared -Wl,-soname,$(TGT_DL).$(MAJOR_VERSION)
 ifeq ($(OSNAME), Darwin)
 	DL_FLAGS=-fvisibility=hidden -dynamiclib

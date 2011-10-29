@@ -31,28 +31,30 @@ pid_t stopped_threads_g[MAX_NTHREADS];
 /** number of threads stopped by libgpuvm, linux only */
 unsigned nstopped_threads_g = 0;
 
-/** a structure describing old linux directory entry */
-struct old_linux_dirent {
-	/* inode number */
-	long  d_ino;
-	/* offset to this old_linux_dirent */              
+/** a structure describing current linux directory entry */
+typedef struct {
+	/** inode number */
+	long d_ino;
+	/** offset from the start of this directory to the next directory */
 	off_t d_off;
-	/* length of this d_name */
-	unsigned short d_reclen;  
-	/* filename (null-terminated) */
-	char  d_name[MAX_PROC_PATH+1]; 
-};
+	/** length of this structure */
+	unsigned short d_reclen;
+	/** directory name */
+	char d_name[];
+} linux_dirent;
 
-/** a variable to store directory entries after my_readdirentname
-		call */
-struct old_linux_dirent old_dirent_g;
+#define DIRENT_BUF_SIZE 1024
+/** dirent buffer */
+char dirent_buf_g[DIRENT_BUF_SIZE];
+/** current dirent buffer position */
+int dirent_buf_pos_g = -1;
+/** current size of filled buffer */
+int dirent_filled_size_g = 0;
 
-/** a wrapper for readdir linux system call (which is man 2, not man 3); see
-		manual pages for comments. This call must be anyway replaced with more
-		modern getdents() */
-static int readdir2(int fd, struct old_linux_dirent *dirent, int count) {
-	return syscall(SYS_readdir, fd, dirent, count);
-}  // readdir2
+/** getdents() linux syscall */
+static int getdents(int fd, void *buf, unsigned count) {
+	return syscall(SYS_getdents, fd, buf, count);
+}
 
 /** opens directory pointed to by path 
 		@param path null-terminated path to directory to open
@@ -60,7 +62,13 @@ static int readdir2(int fd, struct old_linux_dirent *dirent, int count) {
 
  */
 static int my_opendir(const char* path) {
-	return open(path, O_RDONLY | O_DIRECTORY);
+	int fd = open(path, O_RDONLY | O_DIRECTORY);
+	dirent_buf_pos_g = -1;
+	dirent_filled_size_g = 0;
+	if(fd < 0) {
+		fprintf(stderr, "my_opendir: can\'t open directory\n");
+	}
+	return fd;
 }
 
 /** closes directory descriptor 
@@ -76,13 +84,23 @@ static void my_closedir(int fd) {
 		@remarks this function is neither reenterant nor thread-safe
  */
 static const char* my_readdirentname(int fd) {
-	if(readdir2(fd, &old_dirent_g, sizeof(old_dirent_g)) > 0) {
-		//fprintf(stderr, "direntname = %s\n", old_dirent_g.d_name);
-		return old_dirent_g.d_name;
-	} else {
-		//fprintf(stderr, "error number = %d\n", errno);
-		return 0;
-	}
+	if(dirent_buf_pos_g == -1 || dirent_buf_pos_g >= dirent_filled_size_g) {
+		// need to read more data
+		dirent_filled_size_g = getdents(fd, dirent_buf_g, DIRENT_BUF_SIZE);
+		if(dirent_filled_size_g < 0) {
+			fprintf(stderr, "my_readdirentname: can\'t read directory entries\n");
+			return 0;
+		}
+		if(!dirent_filled_size_g) {
+			// end of directory reached
+			return 0;
+		}
+		dirent_buf_pos_g = 0;
+	}  // if(need more buffer)
+	// serve more data from buffer
+	linux_dirent *cur_dirent = (linux_dirent*)(dirent_buf_g + dirent_buf_pos_g);
+	dirent_buf_pos_g += cur_dirent->d_reclen;
+	return cur_dirent->d_name;
 }  // my_readdirentname
 
 /** wrapper for gettid syscall */
