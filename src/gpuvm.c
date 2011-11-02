@@ -9,6 +9,7 @@
 #include "host-array.h"
 #include "link.h"
 #include "stat.h"
+#include "subreg.h"
 #include "util.h"
 
 unsigned ndevs_g = 0;
@@ -190,6 +191,37 @@ int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int fl
 	return 0;
 }  // gpuvm_link
 
+/** pre-unlinks the host array by synchronizing it back to host and unprotecting
+		it 
+		@param hostptr the address of the host array to be synchronized and
+		unprotected
+		@returns 0 if successful and a negative error code if not
+*/
+static int gpuvm_pre_unlink(void *hostptr) {
+	if(lock_reader())
+		return GPUVM_ERROR;
+
+	// get the array
+	host_array_t *host_array = 0;
+	host_array_find(&host_array, hostptr, 0);
+	if(!host_array) {
+		sync_unlock();
+		fprintf(stderr, "gpuvm_pre_unlink: not a valid pointer\n");
+		return GPUVM_EHOSTPTR;
+	}
+	
+	// tap into the beginning of each array subregion, to cause readback if
+	// mprotected 
+	unsigned isubreg;
+	int err;
+	for(isubreg = 0; isubreg < host_array->nsubregs; isubreg++) {
+		err += *(char*)host_array->subregs[isubreg]->range.ptr;
+	}
+	
+	sync_unlock();
+	return 0;
+}  // gpuvm_pre_unlink()
+
 int gpuvm_unlink(void *hostptr, unsigned idev) {
 	// check arguments
 	if(idev >= ndevs_g) {
@@ -199,14 +231,17 @@ int gpuvm_unlink(void *hostptr, unsigned idev) {
 	if(!hostptr)
 		return 0;
 
+	// make array to be synced to host and unprotected
+	gpuvm_pre_unlink(hostptr);
+
 	if(lock_writer())
 		return GPUVM_ERROR;
 
 	host_array_t *host_array;
 	int err = host_array_find(&host_array, hostptr, 0);
 	if(!host_array) {
-		fprintf(stderr, "gpuvm_unlink: not a valid pointer");
 		sync_unlock();
+		fprintf(stderr, "gpuvm_unlink: not a valid pointer\n");
 		return GPUVM_EHOSTPTR;
 	}
 	if(err = host_array_remove_link(host_array, idev)) {

@@ -120,12 +120,12 @@ void *thread_fun(void *ptr) {
 	// check result
 	for(int i = offset; i < offset + my_n; i++) {
 		if(hg[i] != hc[i]) {
-			printf("check in thread: FAILED\n");
+			printf("check in thread %d: FAILED\n", igpu);
 			printf("hg[%d] != hc[%d]: %d != %d\n", i, i, hg[i], hc[i]);
 			exit(-1);
 		}
 	}
-	printf("check in thread: PASSED\n");
+	printf("check in thread %d: PASSED\n", igpu);
 
 	return 0;	
 }  // thread_fun
@@ -196,7 +196,7 @@ int main(int argc, char** argv) {
 
 	// print result
 	printf("printing result\n");
-	int step = 768;
+	int step = 1536;
 	for(int i = 0; i < N; i ++)
 		if(i % step == 0)
 			printf("hc[%d] = %d\n", i, hc[i]);

@@ -34,10 +34,11 @@ int handler_init() {
 
 	// new signal structure
 	action.sa_flags = SA_SIGINFO | SA_NODEFER | SA_RESTART;
-	sigfillset(&action.sa_mask);
+	sigemptyset(&action.sa_mask);
+	/*
 	sigdelset(&action.sa_mask, SIGABRT);
 	sigdelset(&action.sa_mask, SIGCONT);
-	sigdelset(&action.sa_mask, SIG_PROT);
+	sigdelset(&action.sa_mask, SIG_PROT);*/
 	action.sa_sigaction = sigprot_handler;
 	
 	// set SIGSEGV handler
@@ -51,7 +52,7 @@ int handler_init() {
 
 	// set suspension signal handler
 	action.sa_flags = SA_SIGINFO | SA_RESTART;
-	sigfillset(&action.sa_mask);
+	sigemptyset(&action.sa_mask);
 	action.sa_sigaction = sigsusp_handler;
 	if(sigaction(SIG_SUSP, &action, 0)) {
 		fprintf(stderr, "handler_init: can\'t set SIG_SUSP handler\n");
@@ -93,8 +94,8 @@ void call_old_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 
 	// TODO: pass info about the thread which caused the exception to the main 
-
-	//fprintf(stderr, "in SIGSEGV handler\n");
+	//int tid = self_thread();
+	//fprintf(stderr, "thread %d: in SIGSEGV handler\n", tid);
 	// cut off NULL addresses and signals not caused by mprotect
 	void *ptr = siginfo->si_addr;
 	
@@ -132,11 +133,14 @@ void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 	// it is safe to continue now
 	sync_unlock();
 
-	//fprintf(stderr, "leaving SIGSEGV handler\n");
+	//fprintf(stderr, "thread %d: leaving SIGSEGV handler\n", tid);
 }  // sigsegv_handler()
 
 void sigsusp_handler(int signum, siginfo_t *siginfo, void *ucontext) {
+	//int tid = self_thread();
 	// test implementation - just sleep it out
 	// sleep(1);
+	//fprintf(stderr, "thread %d: in SIG_SUSP handler\n", tid);
 	self_block_wait();
+	//fprintf(stderr, "thread %d: leaving SIG_SUSP handler\n", tid);
 }
