@@ -10,6 +10,7 @@
 #include "link.h"
 #include "stat.h"
 #include "subreg.h"
+#include "tsem.h"
 #include "util.h"
 
 unsigned ndevs_g = 0;
@@ -107,6 +108,7 @@ int gpuvm_init(unsigned ndevs, void **devs, int flags) {
 		(err = salloc_init()) || 
 		(err = handler_init()) || 
 		(err = stat_init(flags & GPUVM_STAT)) || 
+		(err = tsem_init()) || 
 		(err = wthreads_init());
 	if(err)
 		return err;

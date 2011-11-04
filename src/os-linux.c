@@ -17,6 +17,7 @@
 #include <unistd.h>
 
 #include "gpuvm.h"
+#include "tsem.h"
 #include "util.h"
 
 // maximum path length for directories in /proc
@@ -26,10 +27,10 @@
 #define BUFFER_SIZE 64
 
 /** array of threads stopped by libgpuvm, linux only */
-pid_t stopped_threads_g[MAX_NTHREADS];
+//pid_t stopped_threads_g[MAX_NTHREADS];
 
 /** number of threads stopped by libgpuvm, linux only */
-unsigned nstopped_threads_g = 0;
+//unsigned nstopped_threads_g = 0;
 
 /** a structure describing current linux directory entry */
 typedef struct {
@@ -162,25 +163,23 @@ int get_threads(thread_t **pthreads) {
 /** checks whether the thread must be stopped; the thread is identified by its tid;
 		linux only 
 		@param tid thread id of the thread to be checked
-		@returns non-zero if the thread must be stopped and zero if not
-		@remarks a zombie thread must not be stopped, and will never change to
-		stopped state; a stopped thread needn't be stopped; an "immune" thread
-		needn't be stopped either; a non-stopped thread must otherwise be stopped, however
+		@returns the pointer to tsem structure for the thread if it must be stopped,
+		and 0 if not
 */
-static int thread_must_be_stopped(thread_t tid) {
+static tsem_t *thread_must_be_stopped(thread_t tid) {
 	// check for immunity
 	int ithread;
 	for(ithread = 0; ithread < immune_nthreads_g; ithread++) 
 		if(immune_threads_g[ithread] == tid)
 			return 0;
-	for(ithread = 0; ithread < nstopped_threads_g; ithread++)
-		if(stopped_threads_g[ithread] == tid)
-			return 0;
-	return 1;
+	tsem_t *tsem = tsem_get(tid);
+	if(tsem_is_blocked(tsem))
+		return 0;
+	return tsem;
 }  // thread_must_be_stopped
 
 void stop_other_threads(void) {
-	nstopped_threads_g = 0;
+	//nstopped_threads_g = 0;
 	// get current thread id and process id's
 	thread_t my_tid = gettid();
 	pid_t my_pid = getpid();
@@ -190,10 +189,10 @@ void stop_other_threads(void) {
 	// indicates first iteration of "stopping threads"
 	int stop_every_thread = 1;
 	int running_thread_found = 1;
+	tsem_lock_reader();
 	while(running_thread_found) {
 		running_thread_found = 0;
 		int task_dir_fd = my_opendir(task_dir_path);
-		//struct dirent *thread_dirent;
 		const char *thread_dirent_name;
 		while(thread_dirent_name = my_readdirentname(task_dir_fd)) {
 			int other_tid;
@@ -202,18 +201,19 @@ void stop_other_threads(void) {
 			if(sscanf(thread_dirent_name, "%d", &other_tid))	{
 				if((pid_t)other_tid == my_tid)
 					continue;
-				int stop_this_thread = thread_must_be_stopped(other_tid);
-				if(stop_this_thread) {
+				tsem_t *tsem = thread_must_be_stopped(other_tid);
+				if(tsem) {
 					running_thread_found = 1;
 					//fprintf(stderr, "stopping thread %d\n", other_tid);
 					tgkill(my_pid, (pid_t)other_tid, SIG_SUSP);
-					if(nstopped_threads_g < MAX_NTHREADS) {
-						stopped_threads_g[nstopped_threads_g] = other_tid;
-						nstopped_threads_g++;
-					} else {
-						fprintf(stderr, "stop_other_threads: too many threads, some may "
-										"fail to resume\n");
-					}
+					//if(nstopped_threads_g < MAX_NTHREADS) {
+					tsem_mark_blocked(tsem);
+					//stopped_threads_g[nstopped_threads_g] = other_tid;
+					//nstopped_threads_g++;
+						//} else {
+						//fprintf(stderr, "stop_other_threads: too many threads, some may "
+						//				"fail to resume\n");
+						//}
 				}  // if(stop_this_thread)
 			} else {
 				fprintf(stderr, "stop_other_threads: %s: non-numeric subdir of thread dir "
@@ -226,15 +226,17 @@ void stop_other_threads(void) {
 			running_thread_found = 1;
 		}
 	}  // end of while()
+	tsem_unlock();
 	// every thread except for the caller is stopped now
 }  // stop_other_threads()
 
 void cont_other_threads(void) {
 	// get current thread id and process id's
-	unsigned ithread;
-	for(ithread = 0; ithread < nstopped_threads_g; ithread++)
-		self_block_post();
-	nstopped_threads_g = 0;
+	//unsigned ithread;
+	//for(ithread = 0; ithread < nstopped_threads_g; ithread++)
+	//	self_block_post();
+	//nstopped_threads_g = 0;
+	tsem_post_all();
 	// stopped threads have been resumed
 }  // cont_other_threads
 

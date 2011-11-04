@@ -215,10 +215,10 @@ void stop_other_threads(void);
 void cont_other_threads(void);
 
 /** blocks the current thread */
-void self_block_wait(void);
+//void self_block_wait(void);
 
 /** unblocks the blocked threads */
-void self_block_post(void);
+//void self_block_post(void);
 
 /** thread suspension signal number */
 #define SIG_SUSP (SIGRTMIN + 4)

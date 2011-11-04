@@ -160,7 +160,7 @@ int main(int argc, char** argv) {
 
 	// print result
 	printf("printing result\n");
-	int step = 512;
+	int step = 1536;
 	for(int i = 0; i < N; i += step)
 		printf("hc[%d] = %d\n", i, hc[i]);
 

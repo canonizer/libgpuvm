@@ -10,6 +10,7 @@
 #include "gpuvm.h"
 #include "region.h"
 #include "subreg.h"
+#include "tsem.h"
 #include "util.h"
 #include "wthreads.h"
 
@@ -26,19 +27,18 @@ void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext);
 void sigsusp_handler(int signum, siginfo_t *siginfo, void *ucontext);
 
 /** a semaphore used to block threads */
-sem_t thread_block_sem;
+//sem_t thread_block_sem;
 
 /** set up the new handler */
 int handler_init() {
 	struct sigaction action, old_action;
 
 	// new signal structure
-	action.sa_flags = SA_SIGINFO | SA_NODEFER | SA_RESTART;
-	sigemptyset(&action.sa_mask);
-	/*
+	action.sa_flags = SA_SIGINFO | SA_RESTART;
+	sigfillset(&action.sa_mask);
 	sigdelset(&action.sa_mask, SIGABRT);
 	sigdelset(&action.sa_mask, SIGCONT);
-	sigdelset(&action.sa_mask, SIG_PROT);*/
+	//sigdelset(&action.sa_mask, SIG_PROT);
 	action.sa_sigaction = sigprot_handler;
 	
 	// set SIGSEGV handler
@@ -52,7 +52,8 @@ int handler_init() {
 
 	// set suspension signal handler
 	action.sa_flags = SA_SIGINFO | SA_RESTART;
-	sigemptyset(&action.sa_mask);
+	sigfillset(&action.sa_mask);
+	sigdelset(&action.sa_mask, SIGCONT);
 	action.sa_sigaction = sigsusp_handler;
 	if(sigaction(SIG_SUSP, &action, 0)) {
 		fprintf(stderr, "handler_init: can\'t set SIG_SUSP handler\n");
@@ -60,20 +61,20 @@ int handler_init() {
 	}
 
 	// initialize thread block semaphore
-	if(sem_init(&thread_block_sem, 0, 0)) {
-		fprintf(stderr, "hander_init: can\'t init thread block semaphore\n");
-		return GPUVM_ERROR;
-	}
+	//if(sem_init(&thread_block_sem, 0, 0)) {
+	//	fprintf(stderr, "hander_init: can\'t init thread block semaphore\n");
+	//	return GPUVM_ERROR;
+	//}
 	return 0;
 }  // handler_init
 
-void self_block_wait(void) {
+/*void self_block_wait(void) {
 	sem_wait(&thread_block_sem);
 }
 
 void self_block_post(void) {
 	sem_post(&thread_block_sem);
-}
+	}*/
 
 /** the function to call old handler */
 void call_old_handler(int signum, siginfo_t *siginfo, void *ucontext) {
@@ -137,10 +138,12 @@ void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 }  // sigsegv_handler()
 
 void sigsusp_handler(int signum, siginfo_t *siginfo, void *ucontext) {
-	//int tid = self_thread();
+	int tid = self_thread();
+	tsem_t *tsem = tsem_get(tid);
+	tsem_wait(tsem);
 	// test implementation - just sleep it out
 	// sleep(1);
 	//fprintf(stderr, "thread %d: in SIG_SUSP handler\n", tid);
-	self_block_wait();
+	//self_block_wait();
 	//fprintf(stderr, "thread %d: leaving SIG_SUSP handler\n", tid);
 }
