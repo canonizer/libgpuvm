@@ -220,8 +220,10 @@ void cont_other_threads(void);
 /** unblocks the blocked threads */
 //void self_block_post(void);
 
-/** thread suspension signal number */
+/** thread suspension signal number - for non-Darwin only*/
+#ifndef __APPLE__
 #define SIG_SUSP (SIGRTMIN + 4)
+#endif
 
 /** @} */
 

@@ -50,7 +50,8 @@ int handler_init() {
 	// remember old handler
 	old_handler_g = old_action.sa_sigaction;
 
-	// set suspension signal handler
+	// set suspension signal handler - for non-Darwin only
+	#ifndef __APPLE__
 	action.sa_flags = SA_SIGINFO | SA_RESTART;
 	sigfillset(&action.sa_mask);
 	sigdelset(&action.sa_mask, SIGCONT);
@@ -59,22 +60,10 @@ int handler_init() {
 		fprintf(stderr, "handler_init: can\'t set SIG_SUSP handler\n");
 		return GPUVM_ERROR;
 	}
+	#endif
 
-	// initialize thread block semaphore
-	//if(sem_init(&thread_block_sem, 0, 0)) {
-	//	fprintf(stderr, "hander_init: can\'t init thread block semaphore\n");
-	//	return GPUVM_ERROR;
-	//}
 	return 0;
 }  // handler_init
-
-/*void self_block_wait(void) {
-	sem_wait(&thread_block_sem);
-}
-
-void self_block_post(void) {
-	sem_post(&thread_block_sem);
-	}*/
 
 /** the function to call old handler */
 void call_old_handler(int signum, siginfo_t *siginfo, void *ucontext) {
@@ -137,6 +126,7 @@ void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 	//fprintf(stderr, "thread %d: leaving SIGSEGV handler\n", tid);
 }  // sigsegv_handler()
 
+#ifndef __APPLE__
 void sigsusp_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 	int tid = self_thread();
 	tsem_t *tsem = tsem_get(tid);
@@ -147,3 +137,4 @@ void sigsusp_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 	//self_block_wait();
 	//fprintf(stderr, "thread %d: leaving SIG_SUSP handler\n", tid);
 }
+#endif

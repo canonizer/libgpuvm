@@ -17,10 +17,13 @@ pthread_rwlock_t tsem_rwlock_g;
 tsem_t *tsem_root_g = 0;
 
 int tsem_init(void) {
+	// for Darwin implementation, tsem is initialized anyway, but not used
+
 	if(pthread_rwlock_init(&tsem_rwlock_g, 0)) {
 		fprintf(stderr, "tsem_init: can\'t init pthread read-write lock\n");
 		return -1;
 	}
+	return 0;
 }  // tsem_init
 
 tsem_t *tsem_find(thread_t tid) {

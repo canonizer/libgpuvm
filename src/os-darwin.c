@@ -13,15 +13,36 @@
 #include <mach/thread_info.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 thread_t self_thread() {
 	return mach_thread_self();
 }
 
+int get_threads(thread_t **pthreads) {
+	mach_port_t my_task = mach_task_self();
+	thread_port_array_t thread_list;
+	unsigned nthreads;
+	int error;
+	if(error = task_threads(my_task, &thread_list, &nthreads)) {
+		fprintf(stderr, "get_threads: can\'t get a list of threads\n");
+		return -1;
+	}
+	thread_t *threads = (thread_t*)malloc(nthreads * sizeof(thread_t));
+	if(!threads) {
+		fprintf(stderr, "get_threads: can\'t allocate memory for threads\n");
+		vm_deallocate(my_task, (vm_address_t)thread_list, 
+									sizeof(*thread_list) * nthreads);
+		return -1;
+	}
+	memcpy(threads, thread_list, sizeof(thread_t) * nthreads);
+	*pthreads = threads;
+	return (int)nthreads;
+}  // get_threads
+
 void stop_other_threads(void) {
 
-#if 0
 	// get current thread & task
 	mach_port_t my_task = mach_task_self();
 	thread_port_t my_thread = mach_thread_self();
@@ -58,11 +79,9 @@ void stop_other_threads(void) {
 	if(error) 
 		fprintf(stderr, "stop_other_threads: can\'t deallocate memory\n");
 	// all other threads have been stopped
-#endif
 }  // stop_other_threads
 
 void cont_other_threads(void) {
-#if 0
 	// get current thread & task
 	mach_port_t my_task = mach_task_self();
 	thread_port_t my_thread = mach_thread_self();
@@ -98,7 +117,6 @@ void cont_other_threads(void) {
 	if(error) 
 		fprintf(stderr, "resume_other_threads: can\'t deallocate memory\n");
 	// all other threads have been resumed
-#endif
 }
 
 #endif

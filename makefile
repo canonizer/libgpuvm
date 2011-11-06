@@ -40,7 +40,10 @@ ifeq ($(OSNAME), Darwin)
 # mono is 32-bit on Mac OS X, so build a fat binary
 	CFLAGS+= -arch i386 -arch x86_64
 endif
-LIBS=-lOpenCL -lpthread -lrt
+LIBS=-lOpenCL -lpthread
+ifneq ($(OSNAME), Darwin)
+	LIBS+= -lrt
+endif
 
 build : $(TGT)
 
