@@ -36,7 +36,12 @@ enum {
 	/** record list of threads after runtime (OpenCL) initializaiton, and subtract from it
 			the list of threads before initialization, to get the final list of threads which
 			must not be stopped */
-	GPUVM_THREADS_AFTER_INIT = 0x100
+	GPUVM_THREADS_AFTER_INIT = 0x100,
+	/** enable blocking of certain signals when holding global writer lock; 
+	 this is required to work correctly with mono GC */
+	GPUVM_WRITER_SIG_BLOCK = 0x200,
+	/** do not sync data back to host prior to unlinking */
+	GPUVM_UNLINK_NO_SYNC_BACK = 0x400
 };
 
 /** constants specifying different types of errors */
@@ -112,9 +117,10 @@ int gpuvm_library_exists();
 		@param ndevs number of devices to be used in the library
 		@param devs devices to be used in the library. For OpenCL, each pointer must specify a
 		device queue. 
-		@param flags indicate device type and possibly usage strategy. Currently must be
-		::GPUVM_OPENCL, with an optional flag of ::GPUVM_STAT if statistics collection must be
-		enabled. Note that if ::GPUVM_STAT is specified for OpenCL devices, the underlying
+		@param flags indicate device type and possibly usage strategy. Currently must include
+		::GPUVM_OPENCL, and a combination of optional ::GPUVM_STAT, ::GPUVM_WRITER_SIG_BLOCK
+		and ::GPUVM_UNLINK_NO_SYNC_BACK.
+		Note that if ::GPUVM_STAT is specified for OpenCL devices, the underlying
 		OpenCL queue must have profiling enabled, or OpenCL-related errors will occur during
 		further operation
 		@return 0 if successful and error code if not

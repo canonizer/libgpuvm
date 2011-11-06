@@ -125,7 +125,7 @@ int ocl_sync_to_host(void *hostptr, size_t nbytes, unsigned idev, void *devbuf,
 	} else {
 		// do statistics collection
 		int err = 0;
-		if(stat_enabled_g) {
+		if(stat_enabled()) {
 			double time;
 			(err = ocl_time(&time, ev)) || (err = stat_acc_double(GPUVM_STAT_COPY_TIME, time));
 		}  // if(stat_enabled_g)
@@ -157,7 +157,7 @@ int ocl_sync_to_device(const void *hostptr, size_t nbytes, unsigned idev, void *
 	} else {
 		// do statistics collection
 		int err = 0;
-		if(stat_enabled_g) {
+		if(stat_enabled()) {
 			double time;
 			(err = ocl_time(&time, ev)) || (err = stat_acc_double(GPUVM_STAT_COPY_TIME, time));
 		}  // if(stat_enabled_g)

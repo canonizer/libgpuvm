@@ -8,8 +8,8 @@
 
 extern unsigned ndevs_g;
 
-/** indicates whether statistics collection is enabled */
-volatile int stat_enabled_g = 0;
+/** GPUVM control flags */
+flags_ctl_t flags_ctl_g = 0;
 
 /** mutex to update copy time */
 pthread_mutex_t copy_time_mutex_g;
@@ -22,8 +22,12 @@ int stat_init(int flags) {
 		fprintf(stderr, "init_stat: can\'t initialize mutex");
 		return GPUVM_ERROR;
 	}
-	if(flags == GPUVM_STAT)
-		stat_enabled_g = 1;
+	if(flags & GPUVM_STAT)
+		flags_ctl_g |= CTL_STAT_ENABLED;
+	if(flags & GPUVM_WRITER_SIG_BLOCK)
+		flags_ctl_g |= CTL_WRITER_SIG_BLOCK;
+	if(!(flags & GPUVM_UNLINK_NO_SYNC_BACK))
+		flags_ctl_g |= CTL_UNLINK_SYNC_BACK;
 	return 0;
 }  // init_stat
 
@@ -34,7 +38,7 @@ int gpuvm_stat(int parameter, void *value) {
 	}
 	switch(parameter) {
 	case GPUVM_STAT_ENABLED:
-		*(int*)value = stat_enabled_g;
+		*(int*)value = CTL_STAT_ENABLED;
 		return 0;
 	case GPUVM_STAT_NDEVS:
 		*(unsigned*)value = ndevs_g;
@@ -48,6 +52,12 @@ int gpuvm_stat(int parameter, void *value) {
 	}  // switch(parameter)
 }  // gpuvm_stat
 
+int stat_enabled(void) { return flags_ctl_g & CTL_STAT_ENABLED; }
+
+int stat_writer_sig_block(void) {	return flags_ctl_g & CTL_WRITER_SIG_BLOCK; }
+
+int stat_unlink_sync_back(void) {return flags_ctl_g & CTL_UNLINK_SYNC_BACK; }
+
 int stat_acc_double(int parameter, double value) {
 	// currently, only GPUVM_COPY_TIME
 	if(pthread_mutex_lock(&copy_time_mutex_g)) {
@@ -60,4 +70,4 @@ int stat_acc_double(int parameter, double value) {
 		return GPUVM_ERROR;
 	}
 	return 0;
-}
+}  // stat_acc_double

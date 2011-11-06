@@ -90,7 +90,8 @@ int main(int argc, char** argv) {
 	CHECK_NULL(kernel);
 
 	// initialize GPUVM
-	CHECK(gpuvm_init(1, (void**)&queue, GPUVM_OPENCL));
+	CHECK(gpuvm_init(1, (void**)&queue, 
+									 GPUVM_OPENCL | GPUVM_UNLINK_NO_SYNC_BACK | GPUVM_WRITER_SIG_BLOCK));
 
 	// allocate host data
 	int *ha = 0, *hb = 0, *hc = 0, *hg = 0;

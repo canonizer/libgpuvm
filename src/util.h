@@ -59,17 +59,22 @@ int sync_init();
 /** locks global lock for reader synchronization 
  @returns 0 if successful and negative error code if not
  */
-int lock_reader();
+int lock_reader(void);
 
 /** locks global lock for writer synchronization
  @returns 0 if successful and negative error code if not 
  */
-int lock_writer();
+int lock_writer(void);
 
-/** unlocks global lock for reader or writer synchronization 
+/** unlocks global lock for reader synchronization 
  @returns 0 if successful and negative error code if not 
  */
-int sync_unlock();
+int unlock_reader(void);
+
+/** unlocks global lock for writer synchronization 
+ @returns 0 if successful and negative error code if not 
+ */
+int unlock_writer(void);
 
 /** @} */
 
@@ -213,12 +218,6 @@ void stop_other_threads(void);
 		OpenCL implementation
  */
 void cont_other_threads(void);
-
-/** blocks the current thread */
-//void self_block_wait(void);
-
-/** unblocks the blocked threads */
-//void self_block_post(void);
 
 /** thread suspension signal number - for non-Darwin only*/
 #ifndef __APPLE__

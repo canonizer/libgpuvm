@@ -90,7 +90,8 @@ int gpuvm_init(unsigned ndevs, void **devs, int flags) {
 		fprintf(stderr, "gpuvm_init: null pointer to devices not allowed\n");
 		return GPUVM_ENULL;
 	}
-	if(flags != GPUVM_OPENCL && flags != (GPUVM_OPENCL | GPUVM_STAT)) {
+	if(flags & ~(GPUVM_OPENCL | GPUVM_STAT | GPUVM_WRITER_SIG_BLOCK | 
+							 GPUVM_UNLINK_NO_SYNC_BACK) || !(flags & GPUVM_OPENCL)) {
 		fprintf(stderr, "gpuvm_init: invalid flags\n");
 		return GPUVM_EARG;
 	}
@@ -107,7 +108,7 @@ int gpuvm_init(unsigned ndevs, void **devs, int flags) {
 	(err = sync_init()) || 
 		(err = salloc_init()) || 
 		(err = handler_init()) || 
-		(err = stat_init(flags & GPUVM_STAT)) || 
+		(err = stat_init(flags)) || 
 		(err = tsem_init()) || 
 		(err = wthreads_init());
 	if(err)
@@ -158,12 +159,12 @@ int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int fl
 		fprintf(stderr, "gpuvm_link: intersecting range already registered with GPUVM\n");
 		fprintf(stderr, "ptr=%p, nbytes=%zd, rangeptr=%p, rangenbytes=%zd\n", 
 						hostptr, nbytes, host_array->range.ptr, host_array->range.nbytes);
-		sync_unlock();
+		unlock_writer();
 		return GPUVM_ERANGE;
 	}
 	if(host_array && host_array->links[idev]) {
 		fprintf(stderr, "gpuvm_link: link on specified device already exists\n");
-		sync_unlock();
+		unlock_writer();
 		return GPUVM_ELINK;
 	}
 
@@ -173,7 +174,7 @@ int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int fl
 	if(!host_array) {
 		err = host_array_alloc(&new_host_array, hostptr, nbytes, flags);
 		if(err) { 
-			sync_unlock();
+			unlock_writer();
 			return err;
 		}
 		host_array = new_host_array;
@@ -184,11 +185,11 @@ int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int fl
 	err = link_alloc(&link, devbuf, idev, host_array);
 	if(err) {
 		host_array_free(new_host_array);
-		sync_unlock();
+		unlock_writer();
 		return err;
 	}
 
-	if(sync_unlock())
+	if(unlock_writer())
 		return GPUVM_ERROR;
 	return 0;
 }  // gpuvm_link
@@ -207,7 +208,7 @@ static int gpuvm_pre_unlink(void *hostptr) {
 	host_array_t *host_array = 0;
 	host_array_find(&host_array, hostptr, 0);
 	if(!host_array) {
-		sync_unlock();
+		unlock_reader();
 		fprintf(stderr, "gpuvm_pre_unlink: not a valid pointer\n");
 		return GPUVM_EHOSTPTR;
 	}
@@ -220,7 +221,7 @@ static int gpuvm_pre_unlink(void *hostptr) {
 		err += *(char*)host_array->subregs[isubreg]->range.ptr;
 	}
 	
-	sync_unlock();
+	unlock_reader();
 	return 0;
 }  // gpuvm_pre_unlink()
 
@@ -233,8 +234,10 @@ int gpuvm_unlink(void *hostptr, unsigned idev) {
 	if(!hostptr)
 		return 0;
 
-	// make array to be synced to host and unprotected
-	gpuvm_pre_unlink(hostptr);
+	if(stat_unlink_sync_back()) {
+		// make array to be synced to host and unprotected
+		gpuvm_pre_unlink(hostptr);
+	}
 
 	if(lock_writer())
 		return GPUVM_ERROR;
@@ -242,18 +245,18 @@ int gpuvm_unlink(void *hostptr, unsigned idev) {
 	host_array_t *host_array;
 	int err = host_array_find(&host_array, hostptr, 0);
 	if(!host_array) {
-		sync_unlock();
+		unlock_writer();
 		fprintf(stderr, "gpuvm_unlink: not a valid pointer\n");
 		return GPUVM_EHOSTPTR;
 	}
 	if(err = host_array_remove_link(host_array, idev)) {
-		sync_unlock();
+		unlock_writer();
 		return err;
 	}
 	if(!host_array_has_links(host_array))
 		host_array_free(host_array);
 
-	if(sync_unlock())
+	if(unlock_writer())
 		return GPUVM_ERROR;
 
 	return 0;
@@ -282,18 +285,18 @@ int gpuvm_kernel_begin(void *hostptr, unsigned idev, int flags) {
 	host_array_find(&host_array, hostptr, 0);
 	if(!host_array) {
 		fprintf(stderr, "gpuvm_kernel_begin: hostptr is not registed with GPUVM\n");
-		sync_unlock();
+		unlock_reader();
 		return GPUVM_EHOSTPTR;
 	}
 	
 	// copy data to device if needed
 	int err;
 	if(err = host_array_sync_to_device(host_array, idev)) {
-		sync_unlock();
+		unlock_reader();
 		return err;
 	}
 	
-	if(sync_unlock())
+	if(unlock_reader())
 		return GPUVM_ERROR;
 
 	return 0;
@@ -319,20 +322,20 @@ int gpuvm_kernel_end(void *hostptr, unsigned idev) {
 	host_array_find(&host_array, hostptr, 0);
 	if(!host_array) {
 		fprintf(stderr, "gpuvm_kernel_begin: hostptr is not registed with GPUVM\n");
-		sync_unlock();
+		unlock_writer();
 		return GPUVM_EHOSTPTR;
 	}
 
 	// set up memory protection and update actuality info
 	int err;
 	if(err = host_array_after_kernel(host_array, idev)) {
-		sync_unlock();
+		unlock_writer();
 		return err;
 	}
 
 	// lock for writer
-	if(sync_unlock())
+	if(unlock_writer())
 		return GPUVM_ERROR;
 
 	return 0;
-} // gpuvm__kernel_end
+} // gpuvm_kernel_end

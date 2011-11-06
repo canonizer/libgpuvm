@@ -107,7 +107,7 @@ void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 	region_t *region = region_find_region(ptr);
 	if(!region) {
 		// we don't handle the address
-		sync_unlock();
+		unlock_reader();
 		call_old_handler(signum, siginfo, ucontext);
 		return;
 	}
@@ -121,7 +121,7 @@ void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 	region_wait_unprotect(region);
 
 	// it is safe to continue now
-	sync_unlock();
+	unlock_reader();
 
 	//fprintf(stderr, "thread %d: leaving SIGSEGV handler\n", tid);
 }  // sigsegv_handler()
