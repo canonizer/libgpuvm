@@ -51,7 +51,7 @@ void get_device(cl_device_id *pdev) {
 
 	// get device
 	int ndevs = 0;
-	clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, pdev, &ndevs);
+	clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, pdev, &ndevs);
 
 	if(ndevs)
 		return;
