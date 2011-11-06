@@ -52,6 +52,7 @@ void get_device(cl_device_id *pdev) {
 	// get device
 	int ndevs = 0;
 	clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, pdev, &ndevs);
+
 	if(ndevs)
 		return;
 	else {
@@ -69,6 +70,7 @@ int main(int argc, char** argv) {
 
 	// create context
 	cl_context ctx = clCreateContext(0, 1, &dev, 0, 0, 0);
+
 	CHECK_NULL(ctx);
 
 	// create queue
