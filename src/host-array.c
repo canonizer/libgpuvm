@@ -75,7 +75,7 @@ static unsigned split_range(memrange_t subranges[MAX_SUBREGS], const memrange_t*
 	return nsubranges;
 }  // split_range
 
-int host_array_alloc(host_array_t **p, void *hostptr, size_t nbytes, int flags) {
+int host_array_alloc(host_array_t **p, void *hostptr, size_t nbytes, int idev) {
 	*p = 0;
 	host_array_t *new_host_array = (host_array_t*)smalloc(sizeof(host_array_t));
 	if(!new_host_array)
@@ -100,7 +100,7 @@ int host_array_alloc(host_array_t **p, void *hostptr, size_t nbytes, int flags) 
 	int err;
 	for(isubreg = 0; isubreg < nsubregs; isubreg++) {
 		err = subreg_alloc(new_host_array->subregs + isubreg, 
-											 subranges[isubreg].ptr, subranges[isubreg].nbytes);
+											 subranges[isubreg].ptr, subranges[isubreg].nbytes, idev);
 		if(err) {
 			// free previously allocated subregions
 			unsigned jsubreg;

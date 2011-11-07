@@ -13,15 +13,15 @@
 
 /** flags specifying device type, data placement, array usage etc. Constants of this type must be used directly  */
 enum {
-	/** no device */
+	/** no flags */
   GPUVM_NONE = 0,
 	/** OpenCL device */
 	GPUVM_OPENCL = 0x1,
 	/** CUDA device */
 	GPUVM_CUDA = 0x2,
-	/** data reside on host */
+	/** data in the array being linked reside on host */
 	GPUVM_ON_HOST = 0x4,
-	/** data reside on device */
+	/** data in the array being linked reside on device */
 	GPUVM_ON_DEVICE = 0x8,
 	/** data are to be used in kernel only for reading */
 	GPUVM_READ_ONLY = 0x10,
@@ -65,7 +65,8 @@ enum {
 	/** the specified host pointer does not point within a valid host array */
 	GPUVM_EHOSTPTR = -8,
 	/** call with underlying implementation failed, likely because of insufficient
-			memory. If memory is managed with garbage collection, try it and call GPUVM again */
+			memory. If memory is managed with garbage collection, try it and call 
+			GPUVM again */
 	GPUVM_EDEVALLOC = -9,
 	/** call setting/removing memory protection fails for some reason */
 	GPUVM_EPROT = -10,
@@ -139,8 +140,11 @@ int gpuvm_init(unsigned ndevs, void **devs, int flags);
 		for a single device
 		@param devbuf device-side buffer being linked to host-side array. May be NULL if
 		nbytes == 0
-		@param flags indicating device type and initial data placement. Currently, must be
-		::GPUVM_OPENCL | ::GPUVM_ON_HOST
+		@param flags indicating device type and initial data placement. Currently,
+		must include obligatory ::GPUVM_OPENCL, and one of ::GPUVM_ON_HOST or
+		::GPUVM_ON_DEVICE, to indicate initial data placement (on host or on device,
+		respectively). Note that if data is said to be placed on device, the array
+		may not be previosly registered with GPUVM, or an error will result
 		@returns 0 if successful and error code if not
  */
 __attribute__((visibility("default")))

@@ -41,9 +41,11 @@ typedef struct subreg_struct {
 		@param p *p contains pointer to allocated subregion if successful and 0 if not
 		@param hostptr the start address of the subregion
 		@param nbytes the size of the subregion
+		@param flags the device where the subreg is actual, or a negative value if
+		it is actual on host
 		@returns 0 if successful and a negative error code if not
  */
-int subreg_alloc(subreg_t **p, void *hostptr, size_t nbytes);
+int subreg_alloc(subreg_t **p, void *hostptr, size_t nbytes, int idev);
 
 /** removes the subregion from the region it belongs to and frees the subregion. Note that
 		if the subregion is the last one in the region, then the region is removed as well */

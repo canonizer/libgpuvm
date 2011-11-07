@@ -31,10 +31,11 @@ typedef struct host_array_struct {
 		@param p [out] *p points to allocated array if successful and is 0 if not
 		@param hostptr pointer to the start of the host array
 		@param nbytes size of the host array in bytes
-		@param flags array flags, currently must be GPUVM_OPENCL | GPUVM_ON_DEVICE
+		@param idev the device on which the array is located, or a negative value if
+		initially on host
 		@returns 0 if successful and negative error code if not
  */
-int host_array_alloc(host_array_t **p, void *hostptr, size_t nbytes, int flags);
+int host_array_alloc(host_array_t **p, void *hostptr, size_t nbytes, int idev);
 
 /** frees a previously allocated host array 
 		@param host_array host array to free

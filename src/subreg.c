@@ -12,20 +12,25 @@
 #include "subreg.h"
 #include "util.h"
 
-int subreg_alloc(subreg_t **p, void *hostptr, size_t nbytes) {
+int subreg_alloc(subreg_t **p, void *hostptr, size_t nbytes, int idev) {
 	// allocate memory
 	*p = 0;
 	subreg_t *new_subreg = (subreg_t*)smalloc(sizeof(subreg_t));
 	if(!new_subreg)
 		return GPUVM_ESALLOC;
 	memset(new_subreg, 0, sizeof(subreg_t));
-	
-	// initialize members
 	new_subreg->range.ptr = hostptr;
 	new_subreg->range.nbytes = nbytes;
-	new_subreg->actual_device = NO_ACTUAL_DEVICE;
-	new_subreg->actual_host = 1;
-	new_subreg->actual_mask = 0;
+	// initialize members
+	if(idev >= 0) {
+		new_subreg->actual_device = idev;
+		new_subreg->actual_host = 0;
+		new_subreg->actual_mask = 1ul << idev;
+	} else {
+		new_subreg->actual_device = NO_ACTUAL_DEVICE;
+		new_subreg->actual_host = 1;
+		new_subreg->actual_mask = 0;
+	}
 #if 0
 	if(pthread_mutex_init(&new_subreg->mutex, 0)) {
 		fprintf(stderr, "subreg_alloc: can\'t init mutex");
@@ -37,8 +42,8 @@ int subreg_alloc(subreg_t **p, void *hostptr, size_t nbytes) {
 	// allocate or find region for this subregion
 	int err;
 	region_t *region = region_find_region(hostptr);
+	
 	if(region) {
-
 		// add to existing region
 		err = region_add_subreg(region, new_subreg);
 	} else {
@@ -50,6 +55,15 @@ int subreg_alloc(subreg_t **p, void *hostptr, size_t nbytes) {
 		sfree(new_subreg);
 		return err;
 	}
+	// protect region if the subregion is initially on device
+	region = new_subreg->region;
+	if(idev >= 0 && !region_is_protected(region)) {
+		err = region_protect(region);
+		if(err) {
+			subreg_free(new_subreg);
+			return err;
+		}
+	}  // if(on device)
 
 	// return
 	*p = new_subreg;

@@ -140,7 +140,8 @@ int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int fl
 		fprintf(stderr, "gpuvm_link: invalid device number\n");
 		return GPUVM_EARG;
 	}
-	if(flags != (GPUVM_OPENCL | GPUVM_ON_HOST)) {
+	if(flags != (GPUVM_OPENCL | GPUVM_ON_HOST) && 
+		 flags != (GPUVM_OPENCL | GPUVM_ON_DEVICE)) {
 		fprintf(stderr, "gpuvm_link: invalid flags\n");
 		return GPUVM_EARG;
 	}
@@ -162,17 +163,26 @@ int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int fl
 		unlock_writer();
 		return GPUVM_ERANGE;
 	}
-	if(host_array && host_array->links[idev]) {
-		fprintf(stderr, "gpuvm_link: link on specified device already exists\n");
-		unlock_writer();
-		return GPUVM_ELINK;
+	if(host_array) {
+		if(flags & GPUVM_ON_DEVICE) {
+			fprintf(stderr, "gpuvm_link: on-device linking of a registered " 
+							"array is not allowed\n");
+			unlock_writer();
+			return GPUVM_ETWICE;
+		}
+		if(host_array->links[idev]) {
+			fprintf(stderr, "gpuvm_link: link on specified device already exists\n");
+			unlock_writer();
+			return GPUVM_ELINK;
+		}
 	}
 
 	// allocate an array if not found
 	host_array_t *new_host_array = 0;
 	int err = 0;
 	if(!host_array) {
-		err = host_array_alloc(&new_host_array, hostptr, nbytes, flags);
+		err = host_array_alloc(&new_host_array, hostptr, nbytes, 
+													 flags & GPUVM_ON_DEVICE ? idev : -1);
 		if(err) { 
 			unlock_writer();
 			return err;
