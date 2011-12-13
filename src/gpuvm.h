@@ -85,7 +85,13 @@ enum {
 	/** number of devices, unsigned */
 	GPUVM_STAT_NDEVS = 2,
 	/** total copying time (measured by OpenCL) in seconds, double */
-	GPUVM_STAT_COPY_TIME = 3
+	GPUVM_STAT_COPY_TIME = 3,
+	/** total number of pagefaults, unsigned long long */
+	GPUVM_STAT_PAGEFAULTS = 4,
+	/** total copying time with overhead (measured on host) in seconds, double;
+			as host -> device copy may cause page fault, there may be overlaps
+	 */
+	GPUVM_STAT_HOST_COPY_TIME = 5
 };
 
 /** 

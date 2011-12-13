@@ -12,7 +12,9 @@ typedef struct tsem_struct {
 	/** the (integer) thread id to which the semaphore belongs */
 	thread_t tid;
 	/** the semaphore used to block the thread */
-	sem_t sem;
+	//sem_t sem;
+	/** the mutex on which the thread blocks */
+	pthread_mutex_t mut;
 	/** left and right subtrees, to hold data for other threads */
 	struct tsem_struct *left, *right;
 	/** whether the thread was blocked */
@@ -53,11 +55,26 @@ void tsem_mark_blocked(tsem_t *tsem);
  */
 int tsem_wait(tsem_t *tsem);
 
+/** called by the stopping thread so that other threads can stop on this
+		semaphore
+		@param tsem the thread semaphore on which to wait
+		@returns 0 if successful and a negative error code if not
+ */
+int tsem_pre_stop(tsem_t *tsem);
+
 /** posts to all blocked tsems, unlocking all blocked threads. This call does
 		not require any synchronization, as it is called by unprot thread only
 		@returns 0 if successful and a negative error code if not
  */
 int tsem_post_all(void);
+
+/** traverses all tsems, and calls a function on each tsem 
+		@param f the function to call on each tsem, accepts a tsem and returns an
+		error code
+		@returns 0 if successful with all nodes and a negative error code if not; in
+		case of an error, traversal of all subnodes is not guaranteed
+ */
+int tsem_traverse_all(int (*f)(tsem_t*));
 
 /** initializes tsem-related infrastructure 
 		@returns 0 if successful and a negative error code if not

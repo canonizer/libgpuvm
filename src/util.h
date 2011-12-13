@@ -8,6 +8,7 @@
  */
 
 #include <stddef.h>
+#include <sys/time.h>
 
 /** 
 		@{
@@ -157,7 +158,7 @@ typedef pid_t thread_t;
 #endif
 
 // maximum number of threads tracked (linux)
-#define MAX_NTHREADS 256
+#define MAX_NTHREADS 64
 
 /** "immune" threads, i.e. threads which must not be stopped during transfer */
 extern thread_t immune_threads_g[MAX_NTHREADS];
@@ -218,6 +219,13 @@ void stop_other_threads(void);
 		OpenCL implementation
  */
 void cont_other_threads(void);
+
+/** computes difference (in seconds) between two moments of time 
+		@param start start time
+		@param end end time
+		@returns difference in seconds between two moments of time
+ */
+double time_diff(const struct timeval *start, const struct timeval *end);
 
 /** thread suspension signal number - for non-Darwin only*/
 #ifndef __APPLE__

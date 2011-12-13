@@ -117,6 +117,7 @@ void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 	// - OpenCL and GPUVM threads ("immune") mustn't wait, as they do not use
 	// protected arrays, and stopping them may cause deadlocks
 	// - application threads needn't wait as they're stopped anyway
+	// temporarily do nothing, to measure overhead
 	wthreads_put_region(region);
 	region_wait_unprotect(region);
 

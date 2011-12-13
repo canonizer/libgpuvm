@@ -4,16 +4,18 @@
 #include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>
 
 #include "gpuvm.h"
 #include "region.h"
 #include "rqueue.h"
+#include "stat.h"
 #include "subreg.h"
 #include "util.h"
 #include "wthreads.h"
 
 /** maximum queue buffer size, in terms of numbers of elements */
-#define MAX_QUEUE_SIZE 1024
+#define MAX_QUEUE_SIZE 128
 
 /** buffers for queues */
 rqueue_elem_t unprot_queue_data_g[MAX_QUEUE_SIZE], 
@@ -113,6 +115,8 @@ static void *unprot_thread(void *dummy_param) {
 	/** the number of regions which have been unprotected, but have not yet been
 	synced to host */
 	unsigned pending_regions = 0;
+	/** starting and ending time for this time period */
+	struct timeval start_time, end_time;
 	while(1) {
 		rqueue_get(&unprot_queue_g, &elem);
 		region_t *region = elem.region;
@@ -123,14 +127,19 @@ static void *unprot_thread(void *dummy_param) {
 			return 0;
 
 		case REGION_OP_UNPROTECT:
+			stat_inc(GPUVM_STAT_PAGEFAULTS);
 			// remove protection, stop threads if necessary
 			if(!pending_regions) {
+				if(stat_enabled()) {
+					gettimeofday(&start_time, 0);
+				}
 				//fprintf(stderr, "stopping other threads\n");
 				stop_other_threads();
 			}
 			if(region_is_protected(region))
 				region_unprotect(region);
 			region_post_unprotect(region);
+			
 			pending_regions++;
 			elem.op = REGION_OP_SYNC_TO_HOST;
 			rqueue_put(&sync_queue_g, &elem);
@@ -138,10 +147,15 @@ static void *unprot_thread(void *dummy_param) {
 
 		case REGION_OP_SYNCED_TO_HOST:
 			pending_regions--;
-			if(!pending_regions) {
+			if(!pending_regions) {			 
 				//fprintf(stderr, "continuing other threads\n");
 				cont_other_threads();
-			}
+				if(stat_enabled()) {
+					gettimeofday(&end_time, 0);
+					stat_acc_double(GPUVM_STAT_HOST_COPY_TIME, 
+													time_diff(&start_time, &end_time));
+				}
+			}  // if(!pending_regions)
 			break;
 
 		default:

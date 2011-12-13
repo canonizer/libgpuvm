@@ -55,7 +55,8 @@ tsem_t *tsem_get(thread_t tid) {
 			return 0;
 		memset(node, 0, sizeof(tsem_t));
 		node->tid = tid;
-		if(sem_init(&node->sem, 0, 0)) {
+		//if(sem_init(&node->sem, 0, 0)) {
+		if(pthread_mutex_init(&node->mut, 0)) {
 			fprintf(stderr, "tsem_find: can\'t init semaphore for thread blocking\n");
 			sfree(node);
 			0;
@@ -70,32 +71,51 @@ int tsem_is_blocked(const tsem_t *tsem) {return tsem->blocked;}
 void tsem_mark_blocked(tsem_t *tsem) {tsem->blocked = 1;}
 
 int tsem_wait(tsem_t *tsem) {
+	pthread_mutex_lock(&tsem->mut);
+	pthread_mutex_unlock(&tsem->mut);
+	/*
 	if(sem_wait(&tsem->sem)) {
 		fprintf(stderr, "tsem_wait: can\'t wait on a thread-blocking semaphore\n");
 		return -1;
-	}
+		}*/
 	return 0;
 }  
 
-int tsem_post_subtree(tsem_t *tsem) {
+int tsem_pre_stop(tsem_t *tsem) {
+	pthread_mutex_lock(&tsem->mut);
+	return 0;
+}
+
+static int tsem_traverse_subtree(tsem_t *tsem, int (*f)(tsem_t*)) {
 	if(!tsem)
 		return 0;
+	int err;
+	if(err = f(tsem))
+		return err;
+	if(err = tsem_traverse_subtree(tsem->left, f))
+		return err;
+	if(err = tsem_traverse_subtree(tsem->right, f))
+		return err;
+	return 0;
+}
+
+int tsem_traverse_all(int (*f)(tsem_t*)) {
+	tsem_traverse_subtree(tsem_root_g, f);
+}
+
+static int tsem_post(tsem_t *tsem) {
 	if(tsem_is_blocked(tsem)) {
 		tsem->blocked = 0;
-		if(sem_post(&tsem->sem)) {
+		//if(sem_post(&tsem->sem)) {
+		if(pthread_mutex_unlock(&tsem->mut)) {
 			fprintf(stderr, "tsem_post: can\'t post thread-blocking semaphore\n");
 			return -1;
 		}
 	}
-	int err;
-	if(err = tsem_post_subtree(tsem->left))
-		return err;
-	if(err = tsem_post_subtree(tsem->right))
-		return err;
 	return 0;
-}  // tsem_post_subtree
+}
 
-int tsem_post_all(void) {tsem_post_subtree(tsem_root_g);}
+int tsem_post_all(void) {tsem_traverse_all(tsem_post);}
 
 int tsem_lock_reader(void) {
 	if(pthread_rwlock_rdlock(&tsem_rwlock_g)) {

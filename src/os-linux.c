@@ -46,13 +46,17 @@ typedef struct {
 	char d_name[];
 } linux_dirent;
 
-#define DIRENT_BUF_SIZE 1024
+#define DIRENT_BUF_SIZE 512
 /** dirent buffer */
 char dirent_buf_g[DIRENT_BUF_SIZE];
 /** current dirent buffer position */
 int dirent_buf_pos_g = -1;
 /** current size of filled buffer */
 int dirent_filled_size_g = 0;
+/** pid of this process */
+pid_t my_pid_g;
+/** whether this is first pagefault is processed */
+//int first_time_g = 1;
 
 /** getdents() linux syscall */
 static int getdents(int fd, void *buf, unsigned count) {
@@ -180,11 +184,26 @@ static tsem_t *thread_must_be_stopped(thread_t tid) {
 	return tsem;
 }  // thread_must_be_stopped
 
+static int stop_thread(tsem_t* tsem) {
+	thread_t tid = tsem->tid;
+	tsem_pre_stop(tsem);
+	tgkill(my_pid_g, (pid_t)tid, SIG_SUSP);
+	tsem_mark_blocked(tsem);
+	return 0;
+}
+
 void stop_other_threads(void) {
+	/*
+	if(!first_time_g) {
+		// use fast-track stopping
+		tsem_traverse_all(stop_thread);
+		return;
+	}
+	first_time_g = 0; */
 	//nstopped_threads_g = 0;
 	// get current thread id and process id's
 	thread_t my_tid = gettid();
-	pid_t my_pid = getpid();
+	my_pid_g = getpid();
 
 	// directory of threads for the current process
 	char task_dir_path[] = "/proc/self/task";
@@ -206,16 +225,11 @@ void stop_other_threads(void) {
 				tsem_t *tsem = thread_must_be_stopped(other_tid);
 				if(tsem) {
 					running_thread_found = 1;
-					//fprintf(stderr, "stopping thread %d\n", other_tid);
-					tgkill(my_pid, (pid_t)other_tid, SIG_SUSP);
-					//if(nstopped_threads_g < MAX_NTHREADS) {
-					tsem_mark_blocked(tsem);
-					//stopped_threads_g[nstopped_threads_g] = other_tid;
-					//nstopped_threads_g++;
-						//} else {
-						//fprintf(stderr, "stop_other_threads: too many threads, some may "
-						//				"fail to resume\n");
-						//}
+					stop_thread(tsem);
+					/*
+					tsem_pre_stop(tsem);
+					tgkill(my_pid_g, (pid_t)other_tid, SIG_SUSP);
+					tsem_mark_blocked(tsem);*/
 				}  // if(stop_this_thread)
 			} else {
 				fprintf(stderr, "stop_other_threads: %s: non-numeric subdir of thread dir "

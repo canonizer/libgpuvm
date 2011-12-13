@@ -10,6 +10,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/time.h>
 
 #include "gpuvm.h"
 #include "opencl.h"
@@ -136,6 +137,9 @@ int ocl_sync_to_host(void *hostptr, size_t nbytes, unsigned idev, void *devbuf,
 
 int ocl_sync_to_device(const void *hostptr, size_t nbytes, unsigned idev, void *devbuf, 
 											 size_t offset) {
+	struct timeval start_time, end_time;
+	if(stat_enabled()) 
+		gettimeofday(&start_time, 0);
 	cl_command_queue queue = (cl_command_queue)devs_g[idev];
 	cl_mem buffer = (cl_mem)devbuf;
 	cl_event ev = 0;
@@ -162,6 +166,10 @@ int ocl_sync_to_device(const void *hostptr, size_t nbytes, unsigned idev, void *
 			(err = ocl_time(&time, ev)) || (err = stat_acc_double(GPUVM_STAT_COPY_TIME, time));
 		}  // if(stat_enabled_g)
 		clReleaseEvent(ev);
+		if(stat_enabled()) {
+			gettimeofday(&end_time, 0);
+			stat_acc_double(GPUVM_STAT_HOST_COPY_TIME, time_diff(&start_time, &end_time));
+		}
 		return err;
 	}
 }  // ocl_sync_to_device

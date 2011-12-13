@@ -37,6 +37,13 @@ int stat_init(int flags);
  */
 int stat_acc_double(int parameter, double value);
 
+/** increments a parameter 
+		@param parameter to increment, currently only GPUVM_STAT_PAGEFAULTS
+		@returns 0 if successful and a negative error code if not (currently, always
+		successful) 
+ */
+int stat_inc(int parameter);
+
 /** gets whether statistics collection is enabled 
 		@returns non-zero if statistics collection is enabled and 0 if not
  */

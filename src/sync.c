@@ -54,6 +54,7 @@ int lock_writer(void) {
 }
 
 int unlock_reader(void) {
+
 	if(pthread_rwlock_unlock(&mutex_g)) {
 		fprintf(stderr, "unlock_reader: reader unlock\n");
 		return GPUVM_ERROR;
@@ -67,6 +68,6 @@ int unlock_writer(void) {
 		return GPUVM_ERROR;
 	}
 	if(stat_writer_sig_block())
-		sigprocmask(SIG_UNBLOCK, &writer_block_sig_g, 0);
+		sigprocmask(SIG_UNBLOCK, &writer_block_sig_g, 0);	
 	return 0;
 }

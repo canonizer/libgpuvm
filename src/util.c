@@ -34,3 +34,8 @@ int threads_diff(thread_t **prthreads, thread_t *athreads, unsigned anthreads,
 	*prthreads = rthreads;
 	return rnthreads;
 }  // threads_diff
+
+double time_diff(const struct timeval *start, const struct timeval *end) {
+	return (end->tv_sec - start->tv_sec) + 
+		1e-6 * (end->tv_usec - start->tv_usec);
+}
