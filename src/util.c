@@ -35,7 +35,22 @@ int threads_diff(thread_t **prthreads, thread_t *athreads, unsigned anthreads,
 	return rnthreads;
 }  // threads_diff
 
-double time_diff(const struct timeval *start, const struct timeval *end) {
+double rtime_diff(const rtime_t *start, const rtime_t *end) {
+#ifdef GPUVM_CLOCK_GETTIME
+	return (end->tv_sec - start->tv_sec) + 
+		1e-9 * (end->tv_nsec - start->tv_nsec);
+#else
 	return (end->tv_sec - start->tv_sec) + 
 		1e-6 * (end->tv_usec - start->tv_usec);
+#endif
+}
+
+rtime_t rtime_get() {
+	rtime_t rt;
+#ifdef GPUVM_CLOCK_GETTIME
+	clock_gettime(CLOCK_MONOTONIC, &rt);
+#else
+	gettimeofday(&rt, 0);
+#endif
+	return rt;
 }

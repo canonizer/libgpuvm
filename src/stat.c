@@ -21,6 +21,9 @@ volatile double copy_time_g = 0.0;
 		copying */
 volatile double host_copy_time_g = 0.0;
 
+/** total time spent in pagefault handling, without data copying */
+double pagefault_time_g = 0.0;
+
 /** total number of page faults */
 unsigned long long n_pagefaults_g = 0;
 
@@ -59,6 +62,9 @@ int gpuvm_stat(int parameter, void *value) {
 	case GPUVM_STAT_HOST_COPY_TIME:
 		*(double*)value = host_copy_time_g;
 		return 0;
+	case GPUVM_STAT_PAGEFAULT_TIME:
+		*(double*)value = pagefault_time_g;
+		return 0;
 	default:
 		fprintf(stderr, "gpuvm_stat: parameter value is invalid\n");
 		return GPUVM_EARG;
@@ -71,12 +77,7 @@ int stat_writer_sig_block(void) {	return flags_ctl_g & CTL_WRITER_SIG_BLOCK; }
 
 int stat_unlink_sync_back(void) {return flags_ctl_g & CTL_UNLINK_SYNC_BACK; }
 
-int stat_acc_double(int parameter, double value) {
-	// currently, only GPUVM_COPY_TIME
-	if(pthread_mutex_lock(&copy_time_mutex_g)) {
-		fprintf(stderr, "stat_acc_double: can\'t lock mutex\n");
-		return GPUVM_ERROR;
-	}
+void stat_acc_unblocked_double(int parameter, double value) {
 	switch(parameter) {
 	case GPUVM_STAT_COPY_TIME:
 		copy_time_g += value;
@@ -84,9 +85,21 @@ int stat_acc_double(int parameter, double value) {
 	case GPUVM_STAT_HOST_COPY_TIME:
 		host_copy_time_g += value;
 		break;
+	case GPUVM_STAT_PAGEFAULT_TIME:
+		pagefault_time_g += value;
+		break;
 	default:
 		fprintf(stderr, "stat_acc_double: invalid parameter");
 	}
+}  // stat_acc_unblocked_double
+
+int stat_acc_double(int parameter, double value) {
+	// currently, only GPUVM_COPY_TIME
+	if(pthread_mutex_lock(&copy_time_mutex_g)) {
+		fprintf(stderr, "stat_acc_double: can\'t lock mutex\n");
+		return GPUVM_ERROR;
+	}
+	stat_acc_unblocked_double(parameter, value);
 	if(pthread_mutex_unlock(&copy_time_mutex_g)) {
 		fprintf(stderr, "stat_acc_double: can\'t unlock mutex\n");
 		return GPUVM_ERROR;

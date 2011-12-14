@@ -103,6 +103,9 @@ static int ocl_time(double *time, cl_event ev) {
 
 int ocl_sync_to_host(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, 
 										 size_t offset) {
+	rtime_t start_time, end_time;
+	if(stat_enabled()) 
+		start_time = rtime_get();
 	cl_command_queue queue = (cl_command_queue)devs_g[idev];
 	cl_mem buffer = (cl_mem)devbuf;
 	cl_event ev = 0;
@@ -130,6 +133,12 @@ int ocl_sync_to_host(void *hostptr, size_t nbytes, unsigned idev, void *devbuf,
 			double time;
 			(err = ocl_time(&time, ev)) || (err = stat_acc_double(GPUVM_STAT_COPY_TIME, time));
 		}  // if(stat_enabled_g)
+		if(stat_enabled()) {
+			end_time = rtime_get();
+			double time = rtime_diff(&start_time, &end_time);
+			stat_acc_double(GPUVM_STAT_HOST_COPY_TIME, time);
+			stat_acc_unblocked_double(GPUVM_STAT_PAGEFAULT_TIME, -time);
+		}
 		clReleaseEvent(ev);
 		return err;
 	}
@@ -137,9 +146,9 @@ int ocl_sync_to_host(void *hostptr, size_t nbytes, unsigned idev, void *devbuf,
 
 int ocl_sync_to_device(const void *hostptr, size_t nbytes, unsigned idev, void *devbuf, 
 											 size_t offset) {
-	struct timeval start_time, end_time;
+	rtime_t start_time, end_time;
 	if(stat_enabled()) 
-		gettimeofday(&start_time, 0);
+		start_time = rtime_get();
 	cl_command_queue queue = (cl_command_queue)devs_g[idev];
 	cl_mem buffer = (cl_mem)devbuf;
 	cl_event ev = 0;
@@ -167,8 +176,8 @@ int ocl_sync_to_device(const void *hostptr, size_t nbytes, unsigned idev, void *
 		}  // if(stat_enabled_g)
 		clReleaseEvent(ev);
 		if(stat_enabled()) {
-			gettimeofday(&end_time, 0);
-			stat_acc_double(GPUVM_STAT_HOST_COPY_TIME, time_diff(&start_time, &end_time));
+			end_time = rtime_get();
+			stat_acc_double(GPUVM_STAT_HOST_COPY_TIME, rtime_diff(&start_time, &end_time));
 		}
 		return err;
 	}

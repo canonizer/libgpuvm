@@ -112,11 +112,11 @@ static void *unprot_thread(void *dummy_param) {
 		return 0;
 	}
 	rqueue_elem_t elem;
-	/** the number of regions which have been unprotected, but have not yet been
-	synced to host */
+	// the number of regions which have been unprotected, but have not yet been
+	// synced to host
 	unsigned pending_regions = 0;
-	/** starting and ending time for this time period */
-	struct timeval start_time, end_time;
+	// starting and ending time for this time period
+	rtime_t start_time, end_time;
 	while(1) {
 		rqueue_get(&unprot_queue_g, &elem);
 		region_t *region = elem.region;
@@ -130,9 +130,8 @@ static void *unprot_thread(void *dummy_param) {
 			stat_inc(GPUVM_STAT_PAGEFAULTS);
 			// remove protection, stop threads if necessary
 			if(!pending_regions) {
-				if(stat_enabled()) {
-					gettimeofday(&start_time, 0);
-				}
+				if(stat_enabled())
+					start_time = rtime_get();
 				//fprintf(stderr, "stopping other threads\n");
 				stop_other_threads();
 			}
@@ -151,9 +150,9 @@ static void *unprot_thread(void *dummy_param) {
 				//fprintf(stderr, "continuing other threads\n");
 				cont_other_threads();
 				if(stat_enabled()) {
-					gettimeofday(&end_time, 0);
-					stat_acc_double(GPUVM_STAT_HOST_COPY_TIME, 
-													time_diff(&start_time, &end_time));
+					end_time = rtime_get();
+					stat_acc_unblocked_double(GPUVM_STAT_PAGEFAULT_TIME, 
+													rtime_diff(&start_time, &end_time));
 				}
 			}  // if(!pending_regions)
 			break;

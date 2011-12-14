@@ -9,6 +9,7 @@
 
 #include <stddef.h>
 #include <sys/time.h>
+#include <time.h>
 
 /** 
 		@{
@@ -220,17 +221,30 @@ void stop_other_threads(void);
  */
 void cont_other_threads(void);
 
-/** computes difference (in seconds) between two moments of time 
-		@param start start time
-		@param end end time
-		@returns difference in seconds between two moments of time
- */
-double time_diff(const struct timeval *start, const struct timeval *end);
-
 /** thread suspension signal number - for non-Darwin only*/
 #ifndef __APPLE__
 #define SIG_SUSP (SIGRTMIN + 4)
 #endif
+
+/** @} */
+
+/** @{ */
+// things related to real time measurement
+#define GPUVM_CLOCK_GETTIME 0
+
+#ifdef GPUVM_CLOCK_GETTIME
+typedef struct timespec rtime_t;
+#else
+typedef struct timeval rtime_t;
+#endif
+
+double rtime_diff(const rtime_t *start, const rtime_t *end);
+
+/** gets real time in the way it is defined 
+		@returns the real time, defined in some way; only meaningful to be used in
+		rtime_diff, to get time passed since some moment in the past
+ */
+rtime_t rtime_get();
 
 /** @} */
 

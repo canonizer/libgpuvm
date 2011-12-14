@@ -31,11 +31,19 @@ int stat_init(int flags);
 
 /** 
 		atomically accumulates value into a double counter
-		@param parameter the parameter into which to accumulate. Currently, GPUVM_COPY_TIME
+		@param parameter the parameter into which to accumulate
 		@param value the value which to add
 		@returns 0 if successful and a negative error code if not
  */
 int stat_acc_double(int parameter, double value);
+
+/** 
+		accumulates value into a double counter without blocking; useful for some
+		counters where it is known that only one thread writes at a time
+		@param parameter the parameter into which to accumulate
+		@param value the value which to add
+ */
+void stat_acc_unblocked_double(int parameter, double value);
 
 /** increments a parameter 
 		@param parameter to increment, currently only GPUVM_STAT_PAGEFAULTS

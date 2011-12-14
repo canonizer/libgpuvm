@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "gpuvm.h"
@@ -57,6 +58,8 @@ int dirent_filled_size_g = 0;
 pid_t my_pid_g;
 /** whether this is first pagefault is processed */
 //int first_time_g = 1;
+/** last modification time for /proc/self/task */
+struct timespec task_mtim_g = {0, 0};
 
 /** getdents() linux syscall */
 static int getdents(int fd, void *buf, unsigned count) {
@@ -193,20 +196,32 @@ static int stop_thread(tsem_t* tsem) {
 }
 
 void stop_other_threads(void) {
-	/*
-	if(!first_time_g) {
+	/*if(!first_time_g) {
 		// use fast-track stopping
 		tsem_traverse_all(stop_thread);
 		return;
 	}
-	first_time_g = 0; */
+	first_time_g = 0;*/
 	//nstopped_threads_g = 0;
+	char task_dir_path[] = "/proc/self/task";
+	// check if can fasttrack
+	struct stat stat_buf;
+	if(!stat(task_dir_path, &stat_buf)) {
+		if(task_mtim_g.tv_sec == stat_buf.st_mtim.tv_sec &&
+			 task_mtim_g.tv_nsec == stat_buf.st_mtim.tv_nsec) {
+			// fast-track thread-stopping
+			tsem_traverse_all(stop_thread);
+			return;			
+		} else {
+			// update /proc/self/task mtime
+			task_mtim_g = stat_buf.st_mtim;
+		}
+	} // if(fast-track)
+
 	// get current thread id and process id's
+	// directory of threads for the current process
 	thread_t my_tid = gettid();
 	my_pid_g = getpid();
-
-	// directory of threads for the current process
-	char task_dir_path[] = "/proc/self/task";
 	// indicates first iteration of "stopping threads"
 	int stop_every_thread = 1;
 	int running_thread_found = 1;

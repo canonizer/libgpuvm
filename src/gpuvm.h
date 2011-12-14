@@ -88,10 +88,12 @@ enum {
 	GPUVM_STAT_COPY_TIME = 3,
 	/** total number of pagefaults, unsigned long long */
 	GPUVM_STAT_PAGEFAULTS = 4,
-	/** total copying time with overhead (measured on host) in seconds, double;
-			as host -> device copy may cause page fault, there may be overlaps
+	/** total copying time with overhead (measured on host) in seconds, double
 	 */
-	GPUVM_STAT_HOST_COPY_TIME = 5
+	GPUVM_STAT_HOST_COPY_TIME = 5,
+	/** pagefault handling time, without time spent in data copying; fairly good
+		approximation of pagefault overhead */
+	GPUVM_STAT_PAGEFAULT_TIME = 6
 };
 
 /** 

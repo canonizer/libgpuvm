@@ -98,10 +98,11 @@ static int subreg_unlock(subreg_t *subreg) {
 		@param subreg specifies host subregion to copy
 		@param link specifies device buffer to copy
  */
-static int subreg_link_sync_to_device(const subreg_t *subreg, const link_t* link) {
+static int subreg_link_sync_to_device(const subreg_t *subreg, const link_t*
+		link) {
 	return ocl_sync_to_device
 		(subreg->range.ptr, subreg->range.nbytes, link->idev, link->buf, 
-		 subreg->range.ptr - subreg->host_array->range.ptr);
+		subreg->range.ptr - subreg->host_array->range.ptr);
 }
 
 /** a simple wrapper for copying data to host 
@@ -232,7 +233,7 @@ int subreg_after_kernel(subreg_t *subreg, unsigned idev) {
 #endif
 
 	// turn on region memory protection
-	if(err = region_protect(region)) {
+	if(!region_is_protected(region) && (err = region_protect(region))) {
 #if 0
 		region_unlock(region);
 		subreg_unlock(subreg);
