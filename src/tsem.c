@@ -55,11 +55,14 @@ tsem_t *tsem_get(thread_t tid) {
 			return 0;
 		memset(node, 0, sizeof(tsem_t));
 		node->tid = tid;
-		//if(sem_init(&node->sem, 0, 0)) {
+#ifdef GPUVM_TSEM_MUTEX
 		if(pthread_mutex_init(&node->mut, 0)) {
 			fprintf(stderr, "tsem_find: can\'t init semaphore for thread blocking\n");
+#else
+		if(sem_init(&node->sem, 0, 0)) {
+#endif
 			sfree(node);
-			0;
+			return 0;
 		}
 		*pnode = node;
 	}  // if(create new node)
@@ -71,18 +74,21 @@ int tsem_is_blocked(const tsem_t *tsem) {return tsem->blocked;}
 void tsem_mark_blocked(tsem_t *tsem) {tsem->blocked = 1;}
 
 int tsem_wait(tsem_t *tsem) {
+#ifdef GPUVM_TSEM_MUTEX
 	pthread_mutex_lock(&tsem->mut);
 	pthread_mutex_unlock(&tsem->mut);
-	/*
-	if(sem_wait(&tsem->sem)) {
-		fprintf(stderr, "tsem_wait: can\'t wait on a thread-blocking semaphore\n");
+#else
+	if(semaph_wait(&tsem->sem))
 		return -1;
-		}*/
+#endif
 	return 0;
 }  
 
 int tsem_pre_stop(tsem_t *tsem) {
+#ifdef GPUVM_TSEM_MUTEX
 	pthread_mutex_lock(&tsem->mut);
+#else
+#endif
 	return 0;
 }
 
@@ -106,9 +112,12 @@ int tsem_traverse_all(int (*f)(tsem_t*)) {
 static int tsem_post(tsem_t *tsem) {
 	if(tsem_is_blocked(tsem)) {
 		tsem->blocked = 0;
-		//if(sem_post(&tsem->sem)) {
+#ifdef GPUVM_TSEM_MUTEX
 		if(pthread_mutex_unlock(&tsem->mut)) {
-			fprintf(stderr, "tsem_post: can\'t post thread-blocking semaphore\n");
+			fprintf(stderr, "tsem_post: can\'t unlock thread-blocking mutexx\n");
+#else
+		if(semaph_post(&tsem->sem)) {
+#endif
 			return -1;
 		}
 	}

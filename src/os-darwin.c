@@ -5,10 +5,12 @@
 #ifdef __APPLE__
 
 #include "gpuvm.h"
+#include "semaph.h"
 #include "util.h"
 
 #include <mach/mach.h>
 #include <mach/mach_error.h>
+#include <mach/task.h>
 #include <mach/task_info.h>
 #include <mach/thread_info.h>
 
@@ -118,5 +120,42 @@ void cont_other_threads(void) {
 		fprintf(stderr, "resume_other_threads: can\'t deallocate memory\n");
 	// all other threads have been resumed
 }
+
+// semaphore utilities, from semaph.h
+int semaph_init(semaph_t *sem, int value) {
+	kern_return_t err = semaphore_create(mach_task_self(), sem, 0, value);
+	if(err) {
+		fprintf(stderr, "semaph_init: can\'t create a semaphore\n");
+		return -1;
+	}
+	return 0;
+}  // semaph_init
+
+int semaph_post(semaph_t *sem) {
+	kern_return_t err = semaphore_signal(*sem);
+	if(err) {
+		fprintf(stderr, "semaph_post: can\'t post on a semaphore\n");
+		return -1;
+	}
+	return 0;
+}  // semaph_post
+
+int semaph_wait(semaph_t *sem) {
+	kern_return_t err = semaphore_wait(*sem);
+	if(err) {
+		fprintf(stderr, "semaph_wait: can\'t wait on a semaphore\n");
+		return -1;
+	}
+	return 0;
+}  // semaph_wait
+
+int semaph_destroy(semaph_t *sem) {
+	kern_return_t err = semaphore_destroy(mach_task_self(), *sem);
+	if(err) {
+		fprintf(stderr, "semaph_destroy: can\'t destroy a semaphore\n");
+		return -1;
+	}
+	return 0;
+}  // semaph_destroy
 
 #endif

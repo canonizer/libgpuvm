@@ -1,7 +1,6 @@
 /** @file wthreads.c implementation of GPUVM worker threads */
 
 #include <pthread.h>
-#include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
@@ -9,6 +8,7 @@
 #include "gpuvm.h"
 #include "region.h"
 #include "rqueue.h"
+#include "semaph.h"
 #include "stat.h"
 #include "subreg.h"
 #include "util.h"
@@ -28,7 +28,7 @@ rqueue_t unprot_queue_g, sync_queue_g;
 volatile thread_t unprot_thread_g, sync_thread_g;
 
 /** initialization semaphore for GPUVM threads threads*/
-sem_t init_sem_g;
+semaph_t init_sem_g;
 
 /** thread routine prototypes */
 static void *unprot_thread(void*);
@@ -61,10 +61,8 @@ int wthreads_init() {
 		return err;
 
 	// start working threads
-	if(sem_init(&init_sem_g, 0, 0)) {
-		fprintf(stderr, "wthread_init: can\'t init thread init semaphore\n");
+	if(semaph_init(&init_sem_g, 0))
 		return -1;
-	}
 	pthread_t dummy_pthread;
 	if(pthread_create(&dummy_pthread, 0, unprot_thread, 0)) {
 		fprintf(stderr, "wthread_init: can\'t start unprot thread\n");
@@ -76,7 +74,7 @@ int wthreads_init() {
 		return -1;
 	}
 	// set exit handlers
-	if(sem_wait(&init_sem_g) || sem_wait(&init_sem_g) ||
+	if(semaph_wait(&init_sem_g) || semaph_wait(&init_sem_g) ||
 		 atexit(unprot_quit) || atexit(sync_quit)) {
 		fprintf(stderr, "wthread_init: can\'t finish initialization\n");
 		unprot_quit();
@@ -92,7 +90,7 @@ int wthreads_init() {
 	immune_threads_g[immune_nthreads_g++] = sync_thread_g;
 
 	// destroy initialization semaphore
-	sem_destroy(&init_sem_g);
+	semaph_destroy(&init_sem_g);
 
 	return 0;
 }  // wthread_init
@@ -107,7 +105,7 @@ void wthreads_put_region(region_t *region) {
 /** thread routine for the thread which does unprotection of regions */
 static void *unprot_thread(void *dummy_param) {
 	unprot_thread_g = self_thread();
-	if(sem_post(&init_sem_g)) {
+	if(semaph_post(&init_sem_g)) {
 		fprintf(stderr, "unprot_thread: can\'t post init semaphore\n");
 		return 0;
 	}
@@ -168,7 +166,7 @@ static void *unprot_thread(void *dummy_param) {
 /** thread routine for the thread which syncs subregions to host */
 static void *sync_thread(void *dummy_param) {
 	sync_thread_g = self_thread();
-	if(sem_post(&init_sem_g)) {
+	if(semaph_post(&init_sem_g)) {
 		fprintf(stderr, "sync_thread: can\'t post init semaphore\n");
 		return 0;
 	}

@@ -1,8 +1,9 @@
-#ifndef _GPUVM_REGION_H_
-#define _GPUVM_REGION_H_
+#ifndef GPUVM_REGION_H_
+#define GPUVM_REGION_H_
 
 #include <pthread.h>
-#include <semaphore.h>
+
+#include "semaph.h"
 #include "util.h"
 
 struct subreg_struct;
@@ -24,7 +25,7 @@ typedef struct region_struct {
 	/** sorted list of subregions associated with this region */
 	subreg_list_t *subreg_list;
 	/** semaphore to signal removal of protection */
-	sem_t unprot_sem;
+	semaph_t unprot_sem;
 } region_t;
 
 /** allocates a new region which consists solely of the specified subregion. Also, assigns

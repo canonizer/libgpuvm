@@ -3,18 +3,23 @@
 
 /** @file tsem.h. interface for per-thread semaphores for blocking individual threads
  */
-#include <semaphore.h>
-
 #include "gpuvm.h"
+#include "semaph.h"
 #include "util.h"
+
+// define if using mutexes, do not define if using semaphores
+//#define GPUVM_TSEM_MUTEX
 
 typedef struct tsem_struct {
 	/** the (integer) thread id to which the semaphore belongs */
 	thread_t tid;
-	/** the semaphore used to block the thread */
-	//sem_t sem;
+#ifdef GPUVM_TSEM_MUTEX
 	/** the mutex on which the thread blocks */
 	pthread_mutex_t mut;
+#else
+	/** the semaphore used to block the thread */
+	semaph_t sem;
+#endif
 	/** left and right subtrees, to hold data for other threads */
 	struct tsem_struct *left, *right;
 	/** whether the thread was blocked */

@@ -9,6 +9,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <semaphore.h>
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -22,6 +23,7 @@
 #include "gpuvm.h"
 #include "tsem.h"
 #include "util.h"
+#include "semaph.h"
 
 // maximum path length for directories in /proc
 #define MAX_PROC_PATH 255
@@ -270,5 +272,42 @@ void cont_other_threads(void) {
 	tsem_post_all();
 	// stopped threads have been resumed
 }  // cont_other_threads
+
+// semaphore utilities, from semaph.h
+int semaph_init(semaph_t *sem, int value) {
+	int err = sem_init(sem, 0, value);
+	if(err) {
+		fprintf(stderr, "semaph_init: can\'t create a semaphore\n");
+		return -1;
+	}
+	return 0;
+}  // semaph_init
+
+int semaph_post(semaph_t *sem) {
+	int err = sem_post(sem);
+	if(err) {
+		fprintf(stderr, "semaph_post: can\'t post on a semaphore\n");
+		return -1;
+	}
+	return 0;
+}  // semaph_post
+
+int semaph_wait(semaph_t *sem) {
+	int err = sem_wait(sem);
+	if(err) {
+		fprintf(stderr, "semaph_wait: can\'t wait on a semaphore\n");
+		return -1;
+	}
+	return 0;
+}  // semaph_wait
+
+int semaph_destroy(semaph_t *sem) {
+	int err = sem_destroy(sem);
+	if(err) {
+		fprintf(stderr, "semaph_destroy: can\'t destroy a semaphore\n");
+		return -1;
+	}
+	return 0;
+}  // semaph_destroy
 
 #endif
