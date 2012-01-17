@@ -75,6 +75,7 @@ void *thread_fun(void *ptr) {
 	size_t my_sz = SZ / NGPUS;
 	size_t my_n = N / NGPUS;
 	size_t offset = my_n * igpu;
+	cl_event ev;
 
 	// allocate device data
 	cl_mem da = clCreateBuffer(ctxs[igpu], 0, my_sz, 0, 0);
@@ -104,9 +105,10 @@ void *thread_fun(void *ptr) {
 	size_t lws[1] = {64};
 	size_t gwos[1] = {0};
 	CHECK(clEnqueueNDRangeKernel(queues[igpu], kernels[igpu], 1, gwos, gws, lws,
-	0, 0, 0));
+	0, 0, &ev));
 	printf("thread %d: kernel enqueued\n", igpu);
-	CHECK(clFinish(queues[igpu]));
+	//CHECK(clFinish(queues[igpu]));
+	CHECK(clWaitForEvents(1, &ev));
 	printf("thread %d: kernel finished\n", igpu);
 
 	// on kernel end
@@ -160,7 +162,11 @@ int main(int argc, char** argv) {
 		// create queue
 		queues[igpu] = clCreateCommandQueue(ctxs[igpu], devs[igpu], 0, 0);
 		CHECK_NULL(queues[igpu]);
+	}
 
+	CHECK(gpuvm_pre_init(GPUVM_THREADS_AFTER_INIT));
+
+	for(int igpu = 0; igpu < NGPUS; igpu++) {
 		// create program and kernel
 		char **sourceLines;
 		int lineCount;
@@ -172,8 +178,6 @@ int main(int argc, char** argv) {
 		kernels[igpu] = clCreateKernel(programs[igpu], "add_arrays", 0);
 		CHECK_NULL(kernels[igpu]);
 	}  // for(igpu)
-
-	CHECK(gpuvm_pre_init(GPUVM_THREADS_AFTER_INIT));
 
 	// initialize GPUVM
 	CHECK(gpuvm_init(NGPUS, (void**)queues, GPUVM_OPENCL));

@@ -35,9 +35,10 @@ int handler_init() {
 
 	// new signal structure
 	action.sa_flags = SA_SIGINFO | SA_RESTART;
+	//sigemptyset(&action.sa_mask);
 	sigfillset(&action.sa_mask);
-	sigdelset(&action.sa_mask, SIGABRT);
-	sigdelset(&action.sa_mask, SIGCONT);
+	//sigdelset(&action.sa_mask, SIGABRT);
+	//sigdelset(&action.sa_mask, SIGCONT);
 	//sigdelset(&action.sa_mask, SIG_PROT);
 	action.sa_sigaction = sigprot_handler;
 	

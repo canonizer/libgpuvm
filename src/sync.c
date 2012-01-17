@@ -10,15 +10,6 @@
 #include "stat.h"
 #include "util.h"
 
-#ifndef __APPLE__
-#define RECURSIVE_MUTEX_ATTR PTHREAD_MUTEX_RECURSIVE_NP
-#else
-#define RECURSIVE_MUTEX_ATTR PTHREAD_MUTEX_RECURSIVE
-#endif
-
-/** signal used for mono GC, usually SIGPWR */
-#define SIG_MONOGC_SUSPEND SIGPWR
-
 /** a helper signal mask to (un)block during writer lock */
 sigset_t writer_block_sig_g;
 
@@ -54,7 +45,6 @@ int lock_writer(void) {
 }
 
 int unlock_reader(void) {
-
 	if(pthread_rwlock_unlock(&mutex_g)) {
 		fprintf(stderr, "unlock_reader: reader unlock\n");
 		return GPUVM_ERROR;

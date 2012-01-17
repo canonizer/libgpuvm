@@ -53,6 +53,19 @@ void sfree(void *ptr);
 		gpuvm_before_kernel() and gpuvm_after_kernel() use read synchronization
  */
 
+#ifndef __APPLE__
+#define RECURSIVE_MUTEX_ATTR PTHREAD_MUTEX_RECURSIVE_NP
+#else
+#define RECURSIVE_MUTEX_ATTR PTHREAD_MUTEX_RECURSIVE
+#endif
+
+/** signal used for mono GC, usually SIGPWR */
+#ifndef __APPLE__
+#define SIG_MONOGC_SUSPEND SIGPWR
+#else
+#define SIG_MONOGC_SUSPEND SIGXCPU
+#endif
+
 /** initializes synchronization data structure 
 		@returns 0 if successufl and negative error code if not 
  */
@@ -230,7 +243,7 @@ void cont_other_threads(void);
 
 /** @{ */
 // things related to real time measurement
-#define GPUVM_CLOCK_GETTIME 0
+//#define GPUVM_CLOCK_GETTIME
 
 #ifdef GPUVM_CLOCK_GETTIME
 typedef struct timespec rtime_t;

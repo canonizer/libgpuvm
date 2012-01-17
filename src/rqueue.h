@@ -32,14 +32,14 @@ typedef struct {
 /** region queue with one consumer (dequeuer) and several producers (enqueuers) */
 typedef struct {
 	/** the buffer for queue data */
-	rqueue_elem_t *data;
+	volatile rqueue_elem_t *data;
 	/** the size of the buffer */
 	unsigned buffer_size;
 	/** tail, buffer index at which to insert the next element */
-	unsigned tail;
+	volatile unsigned tail;
 	/** head, buffer index at which to get the current element; if equal to tail,
 			the queue is empty */
-	unsigned head;
+	volatile unsigned head;
 	/** mutex controlling access to queue; must be locked for any queue operations
 			*/
 	pthread_mutex_t mutex;
@@ -74,5 +74,19 @@ int rqueue_put(rqueue_t *queue, const rqueue_elem_t *elem);
 		on the mutex for availability of elements
  */
 int rqueue_get(rqueue_t *queue, rqueue_elem_t *elem);
+
+/** locks the queue 
+		@param queue the queue to lock
+		@returns 0 if successful and a negative error code if not
+ */
+int rqueue_lock(rqueue_t *queue);
+
+/** unlocks the queue 
+		@param queue the queue to unlock
+		@returns 0 if successful and a negative error code if not
+		@remarks unlocking is always successful
+ */
+int rqueue_unlock(rqueue_t *queue);
+
 
 #endif

@@ -5,12 +5,13 @@
 
 #include "gpuvm.h"
 #include "rqueue.h"
+#include "util.h"
 
 /** locks the queue 
 		@param queue the queue to lock
 		@returns 0 if successful and a negative error code if not
  */
-static int rqueue_lock(rqueue_t *queue) {
+int rqueue_lock(rqueue_t *queue) {
 	if(pthread_mutex_lock(&queue->mutex)) {
 		fprintf(stderr, "rqueue_lock: can\'t lock mutex\n");
 		return -1;
@@ -23,7 +24,7 @@ static int rqueue_lock(rqueue_t *queue) {
 		@returns 0 if successful and a negative error code if not
 		@remarks unlocking is always successful
  */
-static int rqueue_unlock(rqueue_t *queue) {
+int rqueue_unlock(rqueue_t *queue) {
 	pthread_mutex_unlock(&queue->mutex);
 	return 0;
 }
@@ -32,10 +33,15 @@ int rqueue_init(rqueue_t *queue, rqueue_elem_t *data, unsigned buffer_size) {
 	memset(queue, 0, sizeof(rqueue_t));
 	queue->data = data;
 	queue->buffer_size = buffer_size;
-	if(pthread_mutex_init(&queue->mutex, 0)) {
+	pthread_mutexattr_t attr;
+	pthread_mutexattr_init(&attr);
+	pthread_mutexattr_settype(&attr, RECURSIVE_MUTEX_ATTR);
+	
+	if(pthread_mutex_init(&queue->mutex, &attr)) {
 		fprintf(stderr, "rqueue_init: can\'t init mutex\n");
 		return -1;
 	}
+	pthread_mutexattr_destroy(&attr);
 	if(pthread_cond_init(&queue->non_empty_cond, 0)) {
 		fprintf(stderr, "rqueue_init: can\'t init condition variable\n");
 		pthread_mutex_destroy(&queue->mutex);

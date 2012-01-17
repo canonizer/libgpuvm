@@ -26,8 +26,10 @@
  */
 static void event_callback(cl_event event, int event_status, void *user_data) {
 	sigset_t signal_mask;
+	//sigfillset(&signal_mask);
 	sigemptyset(&signal_mask);
 	sigaddset(&signal_mask, SIGSEGV);
+	//sigaddset(&signal_mask, SIGBUS);
 	sigprocmask(SIG_UNBLOCK, &signal_mask, 0);
 }
 
@@ -110,10 +112,11 @@ int ocl_sync_to_host(void *hostptr, size_t nbytes, unsigned idev, void *devbuf,
 	cl_mem buffer = (cl_mem)devbuf;
 	cl_event ev = 0;
 	//fprintf(stderr, "copying data back\n");
-	int cl_err = clEnqueueReadBuffer(queue, devbuf, CL_TRUE, offset, nbytes,
+	int cl_err = clEnqueueReadBuffer(queue, devbuf, CL_FALSE, offset, nbytes,
 										 hostptr, 0, 0, &ev);
+	clWaitForEvents(1, &ev);
 	//fprintf(stderr, "copied data back\n");
-	//clFlush(queue);
+	//clFinish(queue);
 	if(cl_err != CL_SUCCESS) {
 		if(cl_err == CL_MEM_OBJECT_ALLOCATION_FAILURE || 
 			 cl_err == CL_OUT_OF_RESOURCES || cl_err == CL_OUT_OF_HOST_MEMORY) {
@@ -152,9 +155,12 @@ int ocl_sync_to_device(const void *hostptr, size_t nbytes, unsigned idev, void *
 	cl_command_queue queue = (cl_command_queue)devs_g[idev];
 	cl_mem buffer = (cl_mem)devbuf;
 	cl_event ev = 0;
-	int cl_err = clEnqueueWriteBuffer(queue, devbuf, CL_TRUE, offset, nbytes,
+	//fprintf(stderr, "copying data to device\n");
+	int cl_err = clEnqueueWriteBuffer(queue, devbuf, CL_FALSE, offset, nbytes,
 																		hostptr, 0, 0, &ev);
-	//clFlush(queue);
+	//fprintf(stderr, "copied data to device\n");
+	clWaitForEvents(1, &ev);
+	//clFinish(queue);
 	if(cl_err != CL_SUCCESS) {
 		if(cl_err == CL_MEM_OBJECT_ALLOCATION_FAILURE || 
 			 cl_err == CL_OUT_OF_RESOURCES || cl_err == CL_OUT_OF_HOST_MEMORY) {

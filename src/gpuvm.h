@@ -202,6 +202,5 @@ int gpuvm_kernel_end(void *hostptr, unsigned idev);
  */
 __attribute__((visibility("default")))
 int gpuvm_stat(int parameter, void *value);
-// FINISHED HERE - provide implementation
 
 #endif

@@ -62,8 +62,8 @@ void get_device(cl_device_id *pdev) {
 }  // get_device
 
 int main(int argc, char** argv) {
-	
-	CHECK(gpuvm_pre_init(GPUVM_THREADS_BEFORE_INIT));
+
+	CHECK(gpuvm_pre_init(GPUVM_THREADS_BEFORE_INIT));	
 	// get device
 	cl_device_id dev;
 	get_device(&dev);
@@ -89,7 +89,22 @@ int main(int argc, char** argv) {
 	cl_kernel add_arrays_kernel = clCreateKernel(program, "add_arrays", 0);
 	CHECK_NULL(add_arrays_kernel);
 	cl_kernel init_array_kernel = clCreateKernel(program, "init_array", 0);
-	CHECK_NULL(add_arrays_kernel);
+	CHECK_NULL(init_array_kernel);
+	cl_kernel empty_kernel = clCreateKernel(program, "empty", 0);
+	CHECK_NULL(empty_kernel);
+
+	size_t gws[1], lws[1], gwos[1];
+
+	// run an empty kernel, maybe doing so creates more worker threads
+	/*
+	cl_mem empty_buf = 0;
+	CHECK(clSetKernelArg(empty_kernel, 0, sizeof(cl_mem), &empty_buf));
+	gws[0] = N;
+	lws[0] = 64;
+	gwos[0] = 0;
+	CHECK(clEnqueueNDRangeKernel(queue, empty_kernel, 1, gwos, gws, lws, 0,
+															 0, 0));
+	CHECK(clFinish(queue));	*/
 
 	// initialize GPUVM
 	CHECK(gpuvm_init(1, (void**)&queue, 
@@ -118,24 +133,30 @@ int main(int argc, char** argv) {
 	CHECK_NULL(dc);
 
 	// link host buffers to device buffers
-	//printf("linking buffers\n");
+	printf("linking buffers\n");
 	CHECK(gpuvm_link(ha, SZ, 0, (void*)da, GPUVM_OPENCL | GPUVM_ON_DEVICE));
 	CHECK(gpuvm_link(hb, SZ, 0, (void*)db, GPUVM_OPENCL | GPUVM_ON_DEVICE));
 	CHECK(gpuvm_link(hc, SZ, 0, (void*)dc, GPUVM_OPENCL | GPUVM_ON_DEVICE));
 
 	// initialize arrays
 	printf("initializing arrays\n");
+	cl_event ev;
 	// initialize array a
 	CHECK(gpuvm_kernel_begin(ha, 0, GPUVM_READ_WRITE));
 	int disp = 0;
 	CHECK(clSetKernelArg(init_array_kernel, 0, sizeof(cl_mem), &da));
 	CHECK(clSetKernelArg(init_array_kernel, 1, sizeof(int), &disp));
-	size_t gws[1] = {N};
-	size_t lws[1] = {64};
-	size_t gwos[1] = {0};
+	gws[0] = N;
+	lws[0] = 64;
+	gwos[0] = 0;
 	CHECK(clEnqueueNDRangeKernel(queue, init_array_kernel, 1, gwos, gws, lws, 0,
-															 0, 0));
+															 0, &ev));
+	printf("kernel launched, waiting to finish\n");
+	CHECK(clWaitForEvents(1, &ev));
+	//CHECK(clFinish(queue));
+	printf("kernel finished\n");
 	CHECK(gpuvm_kernel_end(ha, 0));
+	printf("array a initialized\n");
 
 	CHECK(gpuvm_kernel_begin(hb, 0, GPUVM_READ_WRITE));
 	disp = 1;
@@ -145,9 +166,11 @@ int main(int argc, char** argv) {
 	lws[0] = 64;
 	gwos[0] = 0;
 	CHECK(clEnqueueNDRangeKernel(queue, init_array_kernel, 1, gwos, gws, lws, 0,
-															 0, 0));
-	CHECK(clFinish(queue));
+															 0, &ev));
+	//CHECK(clFinish(queue));
+	CHECK(clWaitForEvents(1, &ev));
 	CHECK(gpuvm_kernel_end(hb, 0));
+	printf("array b initialized\n");
 
 	// before-kernel actions
 	printf("adding arrays\n");
@@ -165,9 +188,9 @@ int main(int argc, char** argv) {
 		lws[0] = 64;
 		gwos[0] = 0;
 		CHECK(clEnqueueNDRangeKernel(queue, add_arrays_kernel, 1, gwos, gws, 
-																 lws, 0, 0, 0));
-		CHECK(clFinish(queue));
-
+																 lws, 0, 0, &ev));
+		//CHECK(clFinish(queue));
+		CHECK(clWaitForEvents(1, &ev));
 		// on kernel end
 		//printf("actions on kernel end\n");
 		CHECK(gpuvm_kernel_end(ha, 0));

@@ -1,3 +1,6 @@
+kernel void empty(global int *a) {
+}
+
 kernel void init_array(global int *a, int disp) {
   int i = get_global_id(0);
 	a[i] = i + disp;
