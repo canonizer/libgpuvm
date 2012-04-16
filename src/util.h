@@ -7,6 +7,7 @@
 
  */
 
+#include <stdio.h>
 #include <stddef.h>
 #include <sys/time.h>
 #include <time.h>
@@ -120,7 +121,9 @@ typedef enum {
 		@param b second memory range
 		@returns appropriate memrage_cmp_t code
  */
-static inline memrange_cmp_t memrange_cmp(const memrange_t* a, const memrange_t* b) {
+static inline memrange_cmp_t memrange_cmp(const memrange_t* a, const memrange_t*
+		b) {
+	//fprintf(stderr, "comparing memory ranges a = %x and b = %x\n", a, b);
 	if((char*)a->ptr + a->nbytes <= (char*)b->ptr)
 		return MR_CMP_LT;
 	if((char*)b->ptr + b->nbytes <= (char*)a->ptr)

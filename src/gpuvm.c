@@ -157,23 +157,24 @@ int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int fl
 	// find an array intersecting specified range
 	host_array_t *host_array = 0;
 	if(host_array_find(&host_array, hostptr, nbytes)) {
-		fprintf(stderr, "gpuvm_link: intersecting range already registered with GPUVM\n");
-		fprintf(stderr, "ptr=%p, nbytes=%zd, rangeptr=%p, rangenbytes=%zd\n", 
-						hostptr, nbytes, host_array->range.ptr, host_array->range.nbytes);
+		//fprintf(stderr, "gpuvm_link: intersecting range already registered with GPUVM\n");
+		//fprintf(stderr, "ptr=%p, nbytes=%zd, rangeptr=%p, rangenbytes=%zd\n", 
+		//				hostptr, nbytes, host_array->range.ptr, host_array->range.nbytes);
 		unlock_writer();
 		return GPUVM_ERANGE;
 	}
+	//fprintf(stderr, "host array search finished\n");
 	if(host_array) {
+		if(host_array->links[idev]) {
+			//fprintf(stderr, "gpuvm_link: link on specified device already exists\n");
+			unlock_writer();
+			return GPUVM_ELINK;
+		}
 		if(flags & GPUVM_ON_DEVICE) {
 			fprintf(stderr, "gpuvm_link: on-device linking of a registered " 
 							"array is not allowed\n");
 			unlock_writer();
 			return GPUVM_ETWICE;
-		}
-		if(host_array->links[idev]) {
-			fprintf(stderr, "gpuvm_link: link on specified device already exists\n");
-			unlock_writer();
-			return GPUVM_ELINK;
 		}
 	}
 
@@ -183,16 +184,20 @@ int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int fl
 	if(!host_array) {
 		err = host_array_alloc(&new_host_array, hostptr, nbytes, 
 													 flags & GPUVM_ON_DEVICE ? idev : -1);
+		//fprintf(stderr, "new host array allocated\n");
 		if(err) { 
 			unlock_writer();
 			return err;
 		}
 		host_array = new_host_array;
+	} else {
+		//fprintf(stderr, "using old host array\n");
 	}
 
 	// create a link with an array (and assign it into the array)
 	link_t *link = 0;
 	err = link_alloc(&link, devbuf, idev, host_array);
+	//fprintf(stderr, "new link allocated\n");
 	if(err) {
 		host_array_free(new_host_array);
 		unlock_writer();
@@ -201,6 +206,7 @@ int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int fl
 
 	if(unlock_writer())
 		return GPUVM_ERROR;
+	//fprintf(stderr, "gpuvm linked\n");
 	return 0;
 }  // gpuvm_link
 

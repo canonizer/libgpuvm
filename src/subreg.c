@@ -16,6 +16,7 @@ int subreg_alloc(subreg_t **p, void *hostptr, size_t nbytes, int idev) {
 	// allocate memory
 	*p = 0;
 	subreg_t *new_subreg = (subreg_t*)smalloc(sizeof(subreg_t));
+	//fprintf(stderr, "memory for subregion allocated\n");
 	if(!new_subreg)
 		return GPUVM_ESALLOC;
 	memset(new_subreg, 0, sizeof(subreg_t));
@@ -42,13 +43,15 @@ int subreg_alloc(subreg_t **p, void *hostptr, size_t nbytes, int idev) {
 	// allocate or find region for this subregion
 	int err;
 	region_t *region = region_find_region(hostptr);
-	
+	//fprintf(stderr, "region search finished, region=%x\n", region);
 	if(region) {
 		// add to existing region
 		err = region_add_subreg(region, new_subreg);
+		//fprintf(stderr, "added to existing region\n");
 	} else {
 		// create new region
 		err = region_alloc(0, new_subreg);
+		//fprintf(stderr, "region allocated\n");
 	}
 	if(err) {
 		//pthread_mutex_destroy(&new_subreg->mutex);
@@ -71,9 +74,17 @@ int subreg_alloc(subreg_t **p, void *hostptr, size_t nbytes, int idev) {
 }  // subreg_alloc()
 
 void subreg_free(subreg_t *subreg) {
+	// detach subregion from region
 	region_remove_subreg(subreg->region, subreg);
+
+	// free region if empty
+	region_t *region = subreg->region;
+	if(!region->nsubregs)
+		region_free(region);
+
 	// pthread_mutex_destroy(&subreg->mutex);
 	sfree(subreg);
+	//fprintf(stderr, "subregion deallocated\n");
 }
 
 static int subreg_lock(subreg_t *subreg) {

@@ -32,19 +32,38 @@ region_node_t *region_tree_g = 0;
 		@returns new node if successful and 0 if 
  */
 static int tree_add_to_node(region_node_t **pnode, region_t *region) {
+	//fprintf(stderr, "region = %x, node = %x\n", region, *pnode);
 	if(*pnode) {
-		switch(memrange_cmp(&region->range, &(*pnode)->region->range)) {
+		region_t *node_region = (*pnode)->region;
+		//fprintf(stderr, "node->region = %x\n", node_region);
+		//fprintf(stderr, "node->left = %x\n", (*pnode)->left);
+		//fprintf(stderr, "node->right = %x\n", (*pnode)->right);*/
+		int err;
+		if(!node_region) {
+			fprintf(stderr, "tree_add_to_node: suddenly, region is NULL\n");
+			return GPUVM_ERROR;
+		}
+		switch(memrange_cmp(&region->range, &node_region->range)) {
 		case MR_CMP_LT: 
-			return tree_add_to_node(&(*pnode)->left, region);
+			//fprintf(stderr, "going to left node\n");
+			err = tree_add_to_node(&(*pnode)->left, region);
+			break;
 		case MR_CMP_GT:
-			return tree_add_to_node(&(*pnode)->right, region);
+			//fprintf(stderr, "going to right node\n");
+			err = tree_add_to_node(&(*pnode)->right, region);
+			break;
 		case MR_CMP_EQ: case MR_CMP_INT:
 			fprintf(stderr, "tree_add_to_node: same or intersecting region exists\n");
 			return GPUVM_ERANGE;
 		}
+		//fprintf(stderr, "node->region = %x\n", (*pnode)->region);
+		//fprintf(stderr, "node->left = %x\n", (*pnode)->left);
+		//fprintf(stderr, "node->right = %x\n", (*pnode)->right);
+		return err;
 	} else {
 		// a new node is needed
 		*pnode = (region_node_t*)smalloc(sizeof(region_node_t));
+		//fprintf(stderr, "new node = %x\n", *pnode);
 		if(!*pnode)
 			return GPUVM_ESALLOC;
 		(*pnode)->left = (*pnode)->right = 0;
@@ -60,7 +79,10 @@ static int tree_add_to_node(region_node_t **pnode, region_t *region) {
 		in the tree
  */
 static int tree_add(region_t *region) {
-	return tree_add_to_node(&region_tree_g, region);
+	//fprintf(stderr, "adding region to the tree\n");
+	int err = tree_add_to_node(&region_tree_g, region);
+	//fprintf(stderr, "region added to the tree\n");
+	return err;
 }
 
 /** finds a region in the region tree by pointer 
@@ -69,9 +91,14 @@ static int tree_add(region_t *region) {
 		@returns pointer to the region if found and 0 if not
  */
 static region_t *tree_find_region(const region_node_t *node, const void *ptr) {
+	//fprintf(stderr, "node = %x\n", node);
 	// node is 0 - not found
 	if(!node)
 		return 0;
+	//fprintf(stderr, "node->region = %x\n", node->region);
+	//fprintf(stderr, "node->left = %x\n", node->left);
+	//fprintf(stderr, "node->right = %x\n", node->right);
+
 	// non-zero node - further search
 	switch(memrange_pos_ptr(&node->region->range, ptr)) {
 	case MR_CMP_LT:
@@ -86,7 +113,7 @@ static region_t *tree_find_region(const region_node_t *node, const void *ptr) {
 	}
 }  // tree_find_region
 
-/** finds address of loca*/
+/** finds the minimum (leftmost) node in the tree; this may be the node itself */
 static region_node_t **tree_min_pnode(region_node_t **pnode) {
 	if((*pnode)->left)
 		tree_min_pnode(&(*pnode)->left);
@@ -94,7 +121,7 @@ static region_node_t **tree_min_pnode(region_node_t **pnode) {
 		pnode;
 }
 
-/** removes the tree from the node, if any 
+/** removes the region, if any, from the tree
 		@param pnode *pnode is the node the region is being removed from. Passed by reference
 		as there may be a different node
 		@param region the region to be removed
@@ -107,14 +134,14 @@ static void tree_remove_from_node(region_node_t **pnode, const region_t *region)
 		region_node_t *node = *pnode;
 		if(!node->left && !node->right) {
 			*pnode = 0;
+			sfree(node);			
 		} else if(!node->left || !node->right) {
 			if(!node->left) {
 				*pnode = node->right;
-			  sfree(node);
 			} else {
 				*pnode = node->left;
-				sfree(node);
 			}
+			sfree(node);
 		} else {
 			// both nodes are non-null find min in right subtree
 			// TODO: add implementations which alternate between max in left subtree and min in
@@ -142,7 +169,9 @@ static void tree_remove_from_node(region_node_t **pnode, const region_t *region)
 		@region the region to remove
  */
 static void tree_remove(const region_t *region) {
+	//fprintf(stderr, "removing region from tree\n");
 	tree_remove_from_node(&region_tree_g, region);
+	//fprintf(stderr, "removed region from tree\n");
 }
 
 int region_alloc(region_t **p, subreg_t *subreg) {
@@ -153,6 +182,7 @@ int region_alloc(region_t **p, subreg_t *subreg) {
 	if(!new_region)
 		return GPUVM_ESALLOC;
 	memset(new_region, 0, sizeof(region_t));
+	//fprintf(stderr, "memory for region allocated\n");
 	
 	// initialize members
 	new_region->range.ptr = 
@@ -174,6 +204,7 @@ int region_alloc(region_t **p, subreg_t *subreg) {
 		sfree(new_region);
 		return GPUVM_ESALLOC;
 	}
+	//fprintf(stderr, "memory for subregion list allocated\n");
 	new_region->subreg_list->subreg = subreg;
 	new_region->subreg_list->next = 0;
 	
@@ -185,6 +216,7 @@ int region_alloc(region_t **p, subreg_t *subreg) {
 		sfree(new_region);
 		return err;
 	}
+	//fprintf(stderr, "region added to tree\n");
 	subreg->region = new_region;
 	if(p)
 		*p = new_region;
@@ -237,6 +269,7 @@ void region_free(region_t *region) {
 	if(region->prot_status != (PROT_READ | PROT_WRITE))
 		region_unprotect(region);
 	sfree(region);
+	//fprintf(stderr, "region freed\n");
 }
 
 int region_add_subreg(region_t *region, subreg_t *subreg) {

@@ -78,6 +78,7 @@ static unsigned split_range(memrange_t subranges[MAX_SUBREGS], const memrange_t*
 int host_array_alloc(host_array_t **p, void *hostptr, size_t nbytes, int idev) {
 	*p = 0;
 	host_array_t *new_host_array = (host_array_t*)smalloc(sizeof(host_array_t));
+	//fprintf(stderr, "memory for host array allocated\n");
 	if(!new_host_array)
 		return GPUVM_ESALLOC;	
 	memset(new_host_array, 0, sizeof(host_array_t));
@@ -85,6 +86,7 @@ int host_array_alloc(host_array_t **p, void *hostptr, size_t nbytes, int idev) {
 	new_host_array->range.ptr = hostptr;
 	new_host_array->range.nbytes = nbytes;
 	new_host_array->links = (link_t**)smalloc(ndevs_g * sizeof(link_t));
+	//fprintf(stderr, "memory for host array links allocated\n");
 	if(!new_host_array->links) {
 		sfree(new_host_array);
 		return GPUVM_ESALLOC;
@@ -101,6 +103,7 @@ int host_array_alloc(host_array_t **p, void *hostptr, size_t nbytes, int idev) {
 	for(isubreg = 0; isubreg < nsubregs; isubreg++) {
 		err = subreg_alloc(new_host_array->subregs + isubreg, 
 											 subranges[isubreg].ptr, subranges[isubreg].nbytes, idev);
+		//fprintf(stderr, "subregion allocated\n");
 		if(err) {
 			// free previously allocated subregions
 			unsigned jsubreg;
@@ -132,6 +135,7 @@ void host_array_free(host_array_t *host_array) {
 		subreg_free(host_array->subregs[isubreg]);
 	// free memory
 	sfree(host_array);
+	//fprintf(stderr, "host array deallocated\n");
 }  // host_array_free
 
 int host_array_find(host_array_t **p, void *hostptr, size_t nbytes) {

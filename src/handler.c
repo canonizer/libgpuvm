@@ -91,12 +91,12 @@ void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 	void *ptr = siginfo->si_addr;
 	
 	if(!ptr) {
-		//fprintf(stderr, "sigsegv_handler: pointer is NULL \n");
+		fprintf(stderr, "sigsegv_handler: pointer is NULL \n");
 		call_old_handler(signum, siginfo, ucontext);
 		return;
 	}
 	if(siginfo->si_code != SEGV_ACCERR) {
-		//fprintf(stderr, "sigsegv_handler: not an mprotect error, ptr = %tx\n", ptr);
+		fprintf(stderr, "sigsegv_handler: not an mprotect error, ptr = %tx\n", ptr);
 		call_old_handler(signum, siginfo, ucontext);
 		return;
 	}
