@@ -41,6 +41,9 @@
 #define SZ (N * sizeof(int))
 #define NRUNS 1
 
+cl_command_queue queue;
+cl_kernel add_arrays_kernel;
+
 void get_device(cl_device_id *pdev) {
 
 	// get platform
@@ -61,6 +64,36 @@ void get_device(cl_device_id *pdev) {
 	}
 }  // get_device
 
+/** adds arrays on GPU, by calling OpenCL kernel; note that device pointers
+		which correspond to host pointers are obtained using gpuvm_xlate(), and are
+		not passed separately to the function */
+void add_arrays_on_gpu(int *c, int *a, int *b, int n) {
+	CHECK(gpuvm_kernel_begin(a, 0, GPUVM_READ_WRITE));
+	CHECK(gpuvm_kernel_begin(b, 0, GPUVM_READ_WRITE));
+	CHECK(gpuvm_kernel_begin(c, 0, GPUVM_READ_WRITE));
+
+	cl_mem dc_arg = gpuvm_xlate(c, 0);
+	cl_mem da_arg = gpuvm_xlate(b, 0);
+	cl_mem db_arg = gpuvm_xlate(a, 0);
+	
+	// run program
+	CHECK(clSetKernelArg(add_arrays_kernel, 0, sizeof(cl_mem), &dc_arg));
+	CHECK(clSetKernelArg(add_arrays_kernel, 1, sizeof(cl_mem), &da_arg));
+	CHECK(clSetKernelArg(add_arrays_kernel, 2, sizeof(cl_mem), &db_arg));
+	size_t gws[1] = {n};
+	size_t lws[1] = {64};
+	size_t gwos[1] = {0};
+	CHECK(clEnqueueNDRangeKernel(queue, add_arrays_kernel, 1, gwos, 
+															 gws, lws, 0, 0, 0));
+	CHECK(clFinish(queue));
+
+	// on kernel end
+	//printf("actions on kernel end\n");
+	CHECK(gpuvm_kernel_end(a, 0));
+	CHECK(gpuvm_kernel_end(b, 0));
+	CHECK(gpuvm_kernel_end(c, 0));
+}
+
 int main(int argc, char** argv) {
 	
 	CHECK(gpuvm_pre_init(GPUVM_THREADS_BEFORE_INIT));
@@ -74,7 +107,7 @@ int main(int argc, char** argv) {
 	CHECK_NULL(ctx);
 
 	// create queue
-	cl_command_queue queue = clCreateCommandQueue(ctx, dev, 0, 0);
+	queue = clCreateCommandQueue(ctx, dev, 0, 0);
 	CHECK_NULL(queue);
 
 	CHECK(gpuvm_pre_init(GPUVM_THREADS_AFTER_INIT));
@@ -86,8 +119,8 @@ int main(int argc, char** argv) {
 	cl_program program = clCreateProgramWithSource(ctx, lineCount, (const char**)sourceLines, 0, 0);
 	CHECK_NULL(program);
 	CHECK(clBuildProgram(program, 1, &dev, 0, 0, 0));
-	cl_kernel kernel = clCreateKernel(program, "add_arrays", 0);
-	CHECK_NULL(kernel);
+	add_arrays_kernel  = clCreateKernel(program, "add_arrays", 0);
+	CHECK_NULL(add_arrays_kernel);
 
 	// initialize GPUVM
 	CHECK(gpuvm_init(1, (void**)&queue, 
@@ -126,25 +159,8 @@ int main(int argc, char** argv) {
 
 	unsigned irun;
 	for(irun = 0; irun < NRUNS; irun++) {
-		CHECK(gpuvm_kernel_begin(ha, 0, GPUVM_READ_WRITE));
-		CHECK(gpuvm_kernel_begin(hb, 0, GPUVM_READ_WRITE));
-		CHECK(gpuvm_kernel_begin(hc, 0, GPUVM_READ_WRITE));
-	
-		// run program
-		CHECK(clSetKernelArg(kernel, 0, sizeof(cl_mem), &dc));
-		CHECK(clSetKernelArg(kernel, 1, sizeof(cl_mem), &da));
-		CHECK(clSetKernelArg(kernel, 2, sizeof(cl_mem), &db));
-		size_t gws[1] = {N};
-		size_t lws[1] = {64};
-		size_t gwos[1] = {0};
-		CHECK(clEnqueueNDRangeKernel(queue, kernel, 1, gwos, gws, lws, 0, 0, 0));
-		CHECK(clFinish(queue));
-
-		// on kernel end
-		//printf("actions on kernel end\n");
-		CHECK(gpuvm_kernel_end(ha, 0));
-		CHECK(gpuvm_kernel_end(hb, 0));
-		CHECK(gpuvm_kernel_end(hc, 0));
+		// do work on GPU
+		add_arrays_on_gpu(hc, ha, hb, N);
 
 		// evaluate "gold" result
 		for(int i = 0; i < N; i++)

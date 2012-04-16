@@ -278,6 +278,28 @@ int gpuvm_unlink(void *hostptr, unsigned idev) {
 	return 0;
 }  // gpuvm_unlink
 
+void *gpuvm_xlate(void *hostptr, unsigned idev) {
+	// check arguments
+	if(!hostptr || idev >= ndevs_g)
+		return 0;
+	
+	// lock for reading
+	if(lock_reader())
+		return 0;
+
+	// find host array and device buffer
+	host_array_t *host_array;
+	void *dev_buffer = 0;
+	int err = host_array_find(&host_array, hostptr, 0);
+	if(host_array && host_array->links[idev])
+		dev_buffer = host_array->links[idev]->buf;
+	
+	// unlock and return
+	if(unlock_reader())
+		return 0;
+	return dev_buffer;
+}  // gpuvm_xlate
+
 int gpuvm_kernel_begin(void *hostptr, unsigned idev, int flags) {
 	// check arguments
 	if(!hostptr) {

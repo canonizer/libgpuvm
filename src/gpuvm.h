@@ -171,6 +171,18 @@ __attribute__((visibility("default")))
 int gpuvm_unlink(void *hostptr, unsigned idev);
 
 /** 
+		translates a host pointer into a corresponding device pointer/buffer which
+		can be passed to parameter setting funciton of CUDA/OpenCL
+		@param hostptr a pointer on host
+		@param idev the device for which to translate the host pointer
+		@returns the device pointer if successful and 0 if not, e.g. if hostptr is
+		not registered on host, or there is no link for a specific device, or idev
+		is not a valid device number. In any case, no error messages are generated
+ */
+__attribute__((visibility("default")))
+void *gpuvm_xlate(void *hostptr, unsigned idev);
+
+/** 
 		indicates that the device array corresponding to host array is about to be used in a
 		kernel, so make its state on device actual
 		@param hostptr a pointer previously linked to device buffer which is about to be used
