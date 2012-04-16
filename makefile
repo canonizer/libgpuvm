@@ -23,7 +23,8 @@ ifeq ($(OSNAME), Darwin)
 	TGT_WITH_MAJOR_VERSION=lib$(NAME).$(MAJOR_VERSION).$(DL_SUFFIX)
 endif
 TGT=bin/$(TGT_WITH_VERSION)
-TGT_HEADER=src/$(NAME).h
+HEADER=$(NAME).h
+TGT_HEADER=src/$(HEADER)
 TMP=$(TGT) *~ src/*~ $(TGT) bin/$(TGT_WITH_MAJOR_VERSION) bin/*.$(DL_SUFFIX) \
 	doc/*/* samples/bin/* samples/*/*~ samples/*/src/*~
 
@@ -54,10 +55,16 @@ $(TGT) : $(SRC)
 
 # todo: handle setting symbolic links in a more accurate way
 install:	$(TGT)
-	cp $(TGT) $(LIB_PREFIX)
 	cp $(TGT_HEADER) $(HEADER_PREFIX)
+	cp $(TGT) $(LIB_PREFIX)
 	ln -sf $(LIB_PREFIX)/$(TGT_WITH_VERSION) $(LIB_PREFIX)/$(TGT_WITH_MAJOR_VERSION)
 	ln -sf $(LIB_PREFIX)/$(TGT_WITH_MAJOR_VERSION) $(LIB_PREFIX)/$(TGT_DL)
+
+uninstall:
+	rm -f $(LIB_PREFIX)/$(TGT_DL)
+	rm -f $(LIB_PREFIX)/$(TGT_WITH_MAJOR_VERSION)
+	rm -f $(LIB_PREFIX)/$(TGT_WITH_VERSION)
+	rm -f $(LIB_PREFIX)/$(HEADER)
 
 doxy:	$(SRC)
 	doxygen doxygen
