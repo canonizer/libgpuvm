@@ -19,6 +19,8 @@ enum {
 	GPUVM_OPENCL = 0x1,
 	/** CUDA device */
 	GPUVM_CUDA = 0x2,
+	/** GPUVM_CUDA or GPUVM_OPENCL */
+	GPUVM_API = GPUVM_CUDA | GPUVM_OPENCL,
 	/** data in the array being linked reside on host */
 	GPUVM_ON_HOST = 0x4,
 	/** data in the array being linked reside on device */
@@ -73,7 +75,10 @@ enum {
 	/** the array has no link for the specified device */
 	GPUVM_ENOLINK = -11,
 	/** the call is not allowed in this state, or other actions are required */
-	GPUVM_ESTATE = -12
+	GPUVM_ESTATE = -12,
+	/** the API is not supported, wrong API is used, or the functionality is not
+			available for the device API */
+	GPUVM_EAPI = -13
 };
 
 /** possible values, including counters and parameters, which can be obtained using

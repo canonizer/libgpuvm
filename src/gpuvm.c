@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "devapi.h"
 #include "gpuvm.h"
 #include "handler.h"
 #include "host-array.h"
@@ -86,12 +87,8 @@ int gpuvm_init(unsigned ndevs, void **devs, int flags) {
 		fprintf(stderr, "gpuvm_init: zero devices not allowed\n");
 		return GPUVM_EARG;
 	}
-	if(!devs) {
-		fprintf(stderr, "gpuvm_init: null pointer to devices not allowed\n");
-		return GPUVM_ENULL;
-	}
-	if(flags & ~(GPUVM_OPENCL | GPUVM_STAT | GPUVM_WRITER_SIG_BLOCK | 
-							 GPUVM_UNLINK_NO_SYNC_BACK) || !(flags & GPUVM_OPENCL)) {
+	if(flags & ~(GPUVM_API | GPUVM_STAT | GPUVM_WRITER_SIG_BLOCK | 
+							 GPUVM_UNLINK_NO_SYNC_BACK) || !(flags & GPUVM_API)) {
 		fprintf(stderr, "gpuvm_init: invalid flags\n");
 		return GPUVM_EARG;
 	}
@@ -105,12 +102,7 @@ int gpuvm_init(unsigned ndevs, void **devs, int flags) {
 
 	// initialize auxiliary structures
 	int err = 0;
-	(err = sync_init()) || 
-		(err = salloc_init()) || 
-		(err = handler_init()) || 
-		(err = stat_init(flags)) || 
-		(err = tsem_init()) || 
-		(err = wthreads_init());
+	err = salloc_init();
 	if(err)
 		return err;
 
@@ -118,10 +110,27 @@ int gpuvm_init(unsigned ndevs, void **devs, int flags) {
 	devs_g = (void**)smalloc(ndevs * sizeof(void*));
 	if(!devs_g)
 		return GPUVM_ESALLOC;
-	memcpy(devs_g, devs, ndevs * sizeof(void*));
 
-	// do hack for AMD devices
-	ocl_amd_hack_init();
+	if(flags & GPUVM_OPENCL) {
+		if(!devs) {
+			fprintf(stderr, "gpuvm_init: null pointer to devices not allowed\n");
+			return GPUVM_ENULL;
+		}
+		memcpy(devs_g, devs, ndevs * sizeof(void*));
+	} else if(flags & GPUVM_CUDA) {
+		// ignore devs, just zero out devs_g
+		memset(devs_g, 0, ndevs * sizeof(void*));
+	}
+
+	// continue with initialization
+	(err = sync_init()) || 
+		(err = devapi_init(flags)) ||
+		(err = handler_init()) || 
+		(err = stat_init(flags)) || 
+		(err = tsem_init()) || 
+		(err = wthreads_init());
+	if(err)
+		return err;
 	
 	return 0;
 }  // gpuvm_init
@@ -140,8 +149,8 @@ int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int fl
 		fprintf(stderr, "gpuvm_link: invalid device number\n");
 		return GPUVM_EARG;
 	}
-	if(flags != (GPUVM_OPENCL | GPUVM_ON_HOST) && 
-		 flags != (GPUVM_OPENCL | GPUVM_ON_DEVICE)) {
+	if((flags & ~GPUVM_API) != GPUVM_ON_HOST && 
+		 (flags & ~GPUVM_API) != GPUVM_ON_DEVICE) {
 		fprintf(stderr, "gpuvm_link: invalid flags\n");
 		return GPUVM_EARG;
 	}

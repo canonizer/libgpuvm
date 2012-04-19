@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "devapi.h"
 #include "gpuvm.h"
 #include "host-array.h"
 #include "link.h"
@@ -109,21 +110,21 @@ static int subreg_unlock(subreg_t *subreg) {
 		@param subreg specifies host subregion to copy
 		@param link specifies device buffer to copy
  */
-static int subreg_link_sync_to_device(const subreg_t *subreg, const link_t*
-		link) {
-	return ocl_sync_to_device
-		(subreg->range.ptr, subreg->range.nbytes, link->idev, link->buf, 
-		subreg->range.ptr - subreg->host_array->range.ptr);
+static int subreg_link_sync_to_device
+(const subreg_t *subreg, const link_t *link) {
+	return memcpy_h2d
+		(devapi_g, link->idev, link->buf, subreg->range.ptr, subreg->range.nbytes, 
+		 subreg->range.ptr - subreg->host_array->range.ptr);
 }
 
 /** a simple wrapper for copying data to host 
 		@param subreg specifies host subregion to copy
 		@param link specifies device buffer to copy
  */
-static int subreg_link_sync_to_host(const subreg_t *subreg, const link_t* link) {
-	//fprintf(stderr, "syncing data to host\n");
-	return ocl_sync_to_host
-		(subreg->range.ptr, subreg->range.nbytes, link->idev, link->buf, 
+static int subreg_link_sync_to_host
+(const subreg_t *subreg, const link_t* link) {
+	return memcpy_d2h
+		(devapi_g, link->idev, subreg->range.ptr, link->buf, subreg->range.nbytes,
 		 subreg->range.ptr - subreg->host_array->range.ptr);
 }
 

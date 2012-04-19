@@ -1,5 +1,6 @@
 # configuration settings - specifying OS
 OSNAME:=$(shell uname -s)
+ARCH:=$(shell uname -m)
 
 include makefile.def
 
@@ -28,28 +29,43 @@ TGT_HEADER=src/$(HEADER)
 TMP=$(TGT) *~ src/*~ $(TGT) bin/$(TGT_WITH_MAJOR_VERSION) bin/*.$(DL_SUFFIX) \
 	doc/*/* samples/bin/* samples/*/*~ samples/*/src/*~
 
-# compilation settings
+# compilation settings, also handle configuration and OS-dependent settings
 INCLUDE_DIRS=
-ifeq ($(OSNAME), Darwin)
-	INCLUDE_DIRS=-I/system/library/frameworks/opencl.framework/headers
-endif
 CC=gcc
 CFLAGS=-O2
+DEFS=
 DL_FLAGS=-fPIC -fvisibility=hidden -shared -Wl,-soname,$(TGT_DL).$(MAJOR_VERSION)
-ifeq ($(OSNAME), Darwin)
-	DL_FLAGS=-fvisibility=hidden -dynamiclib
-# mono is 32-bit on Mac OS X, so build a fat binary
-	CFLAGS+= -arch i386 -arch x86_64
+LIBS=-lpthread
+LIB_DIRS=
+LIBDIR_STD=lib
+ifeq ($(ARCH), x86_64)
+	LIBDIR_STD=lib64
 endif
-LIBS=-lOpenCL -lpthread
-ifneq ($(OSNAME), Darwin)
+ifeq ($(ARCH), amd64)
+  LIBDIR_STD=lib64
+endif
+ifeq ($(ENABLE_OPENCL), y)
+	DEFS+= -DOPENCL_ENABLED
+	LIBS+= -lOpenCL
+endif
+ifeq ($(ENABLE_CUDA), y)
+	DEFS+= -DCUDA_ENABLED
+	LIBS+= -lcudart
+	INCLUDE_DIRS+= -I$(CUDA_INSTALL_PATH)/include
+	LIB_DIRS+= -L$(CUDA_INSTALL_PATH)/$(LIBDIR_STD)
+endif
+ifeq ($(OSNAME), Darwin)
 	LIBS+= -lrt
+	INCLUDE_DIRS+= -I/system/library/frameworks/opencl.framework/headers
+	DL_FLAGS=-fvisibility=hidden -dynamiclib
+	CFLAGS+= -arch i386 -arch x86_64
 endif
 
 build : $(TGT)
 
-$(TGT) : $(SRC)
-	$(CC) $(CFLAGS) $(DL_FLAGS) $(INCLUDE_DIRS) $(LIBS) $(SRCC) -o $(TGT)
+$(TGT) : $(SRC) makefile.def
+	$(CC) $(CFLAGS) $(DL_FLAGS) $(DEFS) $(INCLUDE_DIRS) $(LIB_DIRS) $(LIBS) \
+		$(SRCC) -o $(TGT)
 	ln -sf $(TGT_WITH_VERSION) bin/$(TGT_DL)
 	ln -sf $(TGT_WITH_VERSION) bin/$(TGT_WITH_MAJOR_VERSION)
 

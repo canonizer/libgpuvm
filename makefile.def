@@ -1,3 +1,12 @@
+# compilation settings
+# enable OpenCL API
+ENABLE_OPENCL=y
+# enable CUDA API
+ENABLE_CUDA=n
+# CUDA install path (including /cuda dir), has effect only when CUDA API is
+# enabled
+CUDA_INSTALL_PATH=/usr/local/cuda
+
 # installation settings
 PREFIX=/usr
 LIB_PREFIX=$(PREFIX)/lib

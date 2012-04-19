@@ -10,11 +10,21 @@ supports OpenCL-capable devices.
 PREREQUISITES
 
 - OpenCL implementation (libOpenCL) - Apple, NVidia or AMD will do
+- CUDA - only if compiling with CUDA support (disabled by default)
 - Linux or Mac OS X 10.6+
 - pthreads
 
-
 BUILDING & INSTALLATION
+
+	Set build options in makefile. Options include:
+
+	PREFIX - prefix used for installation, default /usr
+	ENABLE_OPENCL - enable OpenCL support, default y, i.e. enabled
+	ENABLE_CUDA - enable CUDA support, default n, i.e. disabled
+	CUDA_INSTALL_PATH - path to CUDA installation, used only if CUDA is enabled, 
+										default /usr/local/cuda	
+
+	Compiling and installation:
 
   make && sudo make install 
 	ldconfig (Linux only)
@@ -22,7 +32,7 @@ BUILDING & INSTALLATION
 
 	make doc (for building documentation, requires doxygen)
 
-
 USAGE
 				
-see accompanying documentation (doc/ directory and below)
+see accompanying documentation (doc/ directory and below) and also samples
+(samples/ and below)
