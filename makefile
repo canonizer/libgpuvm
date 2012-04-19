@@ -77,10 +77,10 @@ install:	$(TGT)
 	ln -sf $(LIB_PREFIX)/$(TGT_WITH_MAJOR_VERSION) $(LIB_PREFIX)/$(TGT_DL)
 
 uninstall:
+	rm -f $(HEADER_PREFIX)/$(HEADER)
 	rm -f $(LIB_PREFIX)/$(TGT_DL)
 	rm -f $(LIB_PREFIX)/$(TGT_WITH_MAJOR_VERSION)
 	rm -f $(LIB_PREFIX)/$(TGT_WITH_VERSION)
-	rm -f $(LIB_PREFIX)/$(HEADER)
 
 doxy:	$(SRC)
 	doxygen doxygen
