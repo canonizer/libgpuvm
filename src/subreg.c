@@ -153,7 +153,7 @@ int subreg_sync_to_device(subreg_t *subreg, unsigned idev, int flags) {
 		
 		// need to copy from host to this device
 		link_t *link = host_array->links[idev];
-		fprintf(stderr, "host -> device, subreg = %p, link = %p\n", subreg, link);
+		//fprintf(stderr, "host -> device, subreg = %p, link = %p\n", subreg, link);
 		if(err = subreg_link_sync_to_device(subreg, link)) {
 			return err;
 		}
@@ -176,7 +176,7 @@ int subreg_sync_to_host(subreg_t *subreg) {
 
 		// do actualy copying
 		link_t *link = host_array->links[idev];
-		fprintf(stderr, "device -> host, subreg = %p, link = %p\n", subreg, link);
+		//fprintf(stderr, "device -> host, subreg = %p, link = %p\n", subreg, link);
 		if(err = subreg_link_sync_to_host(subreg, link)) {
 			return err;
 		}		

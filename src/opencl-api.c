@@ -22,6 +22,9 @@
 
 #define MAX_DEVICE_NAME_LENGTH 256
 
+/** OpenCL devapi structure */
+devapi_t ocl_devapi_g;
+
 /** does an AMD initialization hack on AMD GPUs and AMD platforms, and nothing
 		on devices from other manufacturers
 		@returns 0 if successful and a negative error code if not */
@@ -51,9 +54,10 @@ static int ocl_memcpy_h2d
 
 int ocl_devapi_init(void) {
 	// fill in devapi_g structure
-	devapi_g = (devapi_t*)smalloc(sizeof(devapi_t));
-	if(!devapi_g)		
-		return GPUVM_ESALLOC;
+	//devapi_g = (devapi_t*)smalloc(sizeof(devapi_t));
+	//if(!devapi_g)		
+	//	return GPUVM_ESALLOC;
+	devapi_g = &ocl_devapi_g;
 	devapi_g->memcpy_d2h = ocl_memcpy_d2h;
 	devapi_g->memcpy_h2d = ocl_memcpy_h2d;
 

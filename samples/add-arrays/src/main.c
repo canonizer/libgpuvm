@@ -39,7 +39,7 @@
 
 #define N (1024 * 13 + 64)
 #define SZ (N * sizeof(int))
-#define NRUNS 10
+#define NRUNS 1
 
 cl_command_queue queue;
 cl_kernel add_arrays_kernel;

@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 
 #include "../../../src/gpuvm.h"
 
@@ -134,6 +136,13 @@ void *thread_fun(void *ptr) {
 }  // thread_fun
 
 int main(int argc, char** argv) {
+
+	// check limits
+	//struct rlimit siglim;
+	//getrlimit(RLIMIT_SIGPENDING, &siglim);
+	//printf("pending realtime signals limits: soft %d, hard %d\n",
+	// 			 siglim.rlim_cur, siglim.rlim_max);
+
 
 	// allocate host data
 	ha = (int*)malloc(SZ);

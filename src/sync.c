@@ -21,7 +21,7 @@ int sync_init(void) {
 		fprintf(stderr, "sync_init: can\'t init rwlock\n");
 		return GPUVM_ERROR;
 	}
-	sigemptyset(&writer_block_sig_g);
+	sigfillset(&writer_block_sig_g);
 	sigaddset(&writer_block_sig_g, SIG_MONOGC_SUSPEND);
 #ifndef __APPLE__
 	sigaddset(&writer_block_sig_g, SIG_SUSP);
@@ -30,7 +30,7 @@ int sync_init(void) {
 }
 
 int lock_reader(void) {
-	fprintf(stderr, "locking reader\n");
+	//fprintf(stderr, "locking reader\n");
 	if(pthread_rwlock_rdlock(&mutex_g)) {
 		fprintf(stderr, "lock_reader: reader can\'t lock\n");
 		return GPUVM_ERROR;
@@ -39,7 +39,7 @@ int lock_reader(void) {
 }
 
 int lock_writer(void) {
-	fprintf(stderr, "locking writer\n");
+	//fprintf(stderr, "locking writer\n");
 	if(stat_writer_sig_block())
 		sigprocmask(SIG_BLOCK, &writer_block_sig_g, 0);
 	if(pthread_rwlock_wrlock(&mutex_g)) {
@@ -50,7 +50,7 @@ int lock_writer(void) {
 }
 
 int unlock_reader(void) {
-	fprintf(stderr, "unlocking reader\n");
+	//fprintf(stderr, "unlocking reader\n");
 	if(pthread_rwlock_unlock(&mutex_g)) {
 		fprintf(stderr, "unlock_reader: reader unlock\n");
 		return GPUVM_ERROR;
@@ -59,7 +59,7 @@ int unlock_reader(void) {
 }
 
 int unlock_writer(void) {
-	fprintf(stderr, "unlocking writer\n");
+	//fprintf(stderr, "unlocking writer\n");
 	if(pthread_rwlock_unlock(&mutex_g)) {
 		fprintf(stderr, "unlock_writer: reader unlock\n");
 		return GPUVM_ERROR;

@@ -125,6 +125,11 @@ static int tgkill(int tgid, int tid, int sig) {
 	return syscall(SYS_tgkill, tgid, tid, sig);
 }
 
+/** wrapper for tkill syscall */
+static int tkill(int tid, int sig) {
+	return syscall(SYS_tkill, tid, sig);
+}
+
 thread_t self_thread() {
 	return gettid();
 }
@@ -191,9 +196,15 @@ static tsem_t *thread_must_be_stopped(thread_t tid) {
 
 static int stop_thread(tsem_t* tsem) {
 	thread_t tid = tsem->tid;
+	//fprintf(stderr, "stopping thread %d\n", tid);
 	tsem_pre_stop(tsem);
 	tgkill(my_pid_g, (pid_t)tid, SIG_SUSP);
+	//tkill(tid, SIG_SUSP);
+	//union sigval sv;
+	//sv.sival_int = 0;
+	//sigqueue(tid, SIG_SUSP, sv);
 	tsem_mark_blocked(tsem);
+	//fprintf(stderr, "stopped thread %d\n", tid);
 	return 0;
 }
 
@@ -212,8 +223,9 @@ void stop_other_threads(void) {
 		if(task_mtim_g.tv_sec == stat_buf.st_mtim.tv_sec &&
 			 task_mtim_g.tv_nsec == stat_buf.st_mtim.tv_nsec) {
 			// fast-track thread-stopping
+			//fprintf(stderr, "fast-track stopping\n");
 			tsem_traverse_all(stop_thread);
-			return;			
+			return;
 		} else {
 			// update /proc/self/task mtime
 			task_mtim_g = stat_buf.st_mtim;
@@ -227,7 +239,7 @@ void stop_other_threads(void) {
 	// indicates first iteration of "stopping threads"
 	int stop_every_thread = 1;
 	int running_thread_found = 1;
-	tsem_lock_reader();
+	tsem_lock_writer();
 	while(running_thread_found) {
 		running_thread_found = 0;
 		int task_dir_fd = my_opendir(task_dir_path);

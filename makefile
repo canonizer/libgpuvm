@@ -32,7 +32,7 @@ TMP=$(TGT) *~ src/*~ $(TGT) bin/$(TGT_WITH_MAJOR_VERSION) bin/*.$(DL_SUFFIX) \
 # compilation settings, also handle configuration and OS-dependent settings
 INCLUDE_DIRS=
 CC=gcc
-CFLAGS=-O2
+CFLAGS=-O2 -pthread
 DEFS=
 DL_FLAGS=-fPIC -fvisibility=hidden -shared -Wl,-soname,$(TGT_DL).$(MAJOR_VERSION)
 LIBS=-lpthread
@@ -55,10 +55,11 @@ ifeq ($(ENABLE_CUDA), y)
 	LIB_DIRS+= -L$(CUDA_INSTALL_PATH)/$(LIBDIR_STD)
 endif
 ifeq ($(OSNAME), Darwin)
-	LIBS+= -lrt
 	INCLUDE_DIRS+= -I/system/library/frameworks/opencl.framework/headers
 	DL_FLAGS=-fvisibility=hidden -dynamiclib
 	CFLAGS+= -arch i386 -arch x86_64
+else
+	LIBS+= -lrt
 endif
 
 build : $(TGT)

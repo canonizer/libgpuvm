@@ -2,6 +2,7 @@
 		OpenCL 
 */
 
+#include <signal.h>
 #include <stdio.h>
 
 #include "cuda-api.h"
@@ -13,7 +14,16 @@
 
 devapi_t *devapi_g;
 
+/** a helper signal mask to (un)block during writer lock */
+sigset_t devapi_block_sig_g;
+
 int devapi_init(int flags) {
+	sigemptyset(&devapi_block_sig_g);
+	sigaddset(&devapi_block_sig_g, SIG_MONOGC_SUSPEND);
+#ifndef __APPLE__
+	sigaddset(&devapi_block_sig_g, SIG_SUSP);
+#endif
+
 	flags &= GPUVM_API;
 	if(flags != GPUVM_CUDA && flags != GPUVM_OPENCL) {
 		fprintf(stderr, "devapi_init: invalid flags\n");
@@ -42,6 +52,7 @@ int devapi_init(int flags) {
 int memcpy_h2d
 (devapi_t *devapi, unsigned idev, void *tgt, void *src, size_t nbytes, 
  size_t devoff) {
+	//sigprocmask(SIG_BLOCK, &devapi_block_sig_g, 0);
 	// time API call
 	rtime_t start_time, end_time;
 	if(stat_enabled()) 
@@ -53,12 +64,14 @@ int memcpy_h2d
 		end_time = rtime_get();
 		stat_acc_double(GPUVM_STAT_HOST_COPY_TIME, rtime_diff(&start_time, &end_time));
 	}
+	//sigprocmask(SIG_UNBLOCK, &devapi_block_sig_g, 0);
 	return err;
 }  // memcpy_h2d
 
 int memcpy_d2h
 (devapi_t *devapi, unsigned idev, void *tgt, void *src, size_t nbytes, 
  size_t devoff) {
+	//sigprocmask(SIG_BLOCK, &devapi_block_sig_g, 0);
 	// time API call
 	rtime_t start_time, end_time;
 	if(stat_enabled()) 
@@ -70,5 +83,6 @@ int memcpy_d2h
 		end_time = rtime_get();
 		stat_acc_double(GPUVM_STAT_HOST_COPY_TIME, rtime_diff(&start_time, &end_time));
 	}
+	//sigprocmask(SIG_UNBLOCK, &devapi_block_sig_g, 0);
 	return err;
 }  // memcpy_d2h

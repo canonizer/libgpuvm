@@ -59,7 +59,7 @@ tsem_t *tsem_get(thread_t tid) {
 		if(pthread_mutex_init(&node->mut, 0)) {
 			fprintf(stderr, "tsem_find: can\'t init semaphore for thread blocking\n");
 #else
-		if(sem_init(&node->sem, 0, 0)) {
+		if(semaph_init(&node->sem, 0)) {
 #endif
 			sfree(node);
 			return 0;
@@ -93,6 +93,7 @@ int tsem_pre_stop(tsem_t *tsem) {
 }
 
 static int tsem_traverse_subtree(tsem_t *tsem, int (*f)(tsem_t*)) {
+	//fprintf(stderr, "tsem=%p\n", tsem);
 	if(!tsem)
 		return 0;
 	int err;
@@ -112,14 +113,14 @@ int tsem_traverse_all(int (*f)(tsem_t*)) {
 static int tsem_post(tsem_t *tsem) {
 	if(tsem_is_blocked(tsem)) {
 		tsem->blocked = 0;
+	}
 #ifdef GPUVM_TSEM_MUTEX
-		if(pthread_mutex_unlock(&tsem->mut)) {
-			fprintf(stderr, "tsem_post: can\'t unlock thread-blocking mutexx\n");
+	if(pthread_mutex_unlock(&tsem->mut)) {
+		fprintf(stderr, "tsem_post: can\'t unlock thread-blocking mutex\n");
 #else
-		if(semaph_post(&tsem->sem)) {
+	if(semaph_post(&tsem->sem)) {
 #endif
-			return -1;
-		}
+		return -1;
 	}
 	return 0;
 }

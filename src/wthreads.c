@@ -126,7 +126,7 @@ static void *unprot_thread(void *dummy_param) {
 			return 0;
 
 		case REGION_OP_UNPROTECT:
-			fprintf(stderr, "unprotect request received\n");
+			//fprintf(stderr, "unprotect request received\n");
 			stat_inc(GPUVM_STAT_PAGEFAULTS);
 			if(region->prot_status == PROT_NONE) {
 				// fully unprotect region
@@ -136,10 +136,11 @@ static void *unprot_thread(void *dummy_param) {
 						start_time = rtime_get();
 					//fprintf(stderr, "stopping other threads\n");
 					stop_other_threads();
+					//fprintf(stderr, "stopped other threads\n");
 				}				
 				region_unprotect(region);
+				//fprintf(stderr, "unprotect request satisfied - BLOCK\n");
 				region_post_unprotect(region);
-				fprintf(stderr, "unprotect request satisfied - BLOCK\n");
 			
 				pending_regions++;
 				elem.op = REGION_OP_SYNC_TO_HOST;
@@ -150,13 +151,14 @@ static void *unprot_thread(void *dummy_param) {
 				region_unprotect(region);
 				for(list = region->subreg_list; list; list = list->next)
 					subreg_sync_to_host(list->subreg);
+				//fprintf(stderr, "unprotect request satisfied - RO\n");
 				region_post_unprotect(region);
-				fprintf(stderr, "unprotect request satisfied - RO\n");
 			} else {
 				// do nothing
+				//fprintf(stderr, "unprotect request satisfied - NONE\n");
 				region_post_unprotect(region);
-				fprintf(stderr, "unprotect request satisfied - NONE\n");
 			}
+			//fprintf(stderr, "unprotect message posted\n");
 			break;
 
 		case REGION_OP_SYNCED_TO_HOST:
@@ -200,14 +202,14 @@ static void *sync_thread(void *dummy_param) {
 			return 0;
 
 		case REGION_OP_SYNC_TO_HOST:
-			fprintf(stderr, "syncing region to host\n");
+			//fprintf(stderr, "syncing region to host\n");
 			// sync region to host
 			for(list = region->subreg_list; list; list = list->next)
 				subreg_sync_to_host(list->subreg);
 			
 			elem.op = REGION_OP_SYNCED_TO_HOST;
 			rqueue_put(&unprot_queue_g, &elem);
-			fprintf(stderr, "synced region to host\n");
+			//fprintf(stderr, "synced region to host\n");
 			break;
 
 		default:
