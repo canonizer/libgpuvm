@@ -13,7 +13,7 @@ LIB_DIRS += -L../../bin
 OSNAME:=$(shell uname -s)
 CFLAGS = -O2
 ifeq ($(CC), gcc)
-	CFLAGS += -std=gnu99
+	CFLAGS += -std=gnu99 -pthread
 endif
 LIBS += -lgpuvm -lOpenCL
 ifeq ($(OSNAME), Darwin)
