@@ -39,7 +39,7 @@
 
 #define N (1024 * 13 + 64)
 #define SZ (N * sizeof(int))
-#define NRUNS 1
+#define NRUNS 10
 
 cl_command_queue queue;
 cl_kernel add_arrays_kernel;
@@ -183,21 +183,33 @@ int main(int argc, char** argv) {
 	for(int i = 0; i < N; i += step)
 		printf("hc[%d] = %d\n", i, hc[i]);
 
+	// print statistics
+	unsigned long long pagefaults = 0;
+	CHECK(gpuvm_stat(GPUVM_STAT_PAGEFAULTS, &pagefaults));
+	printf("number of pagefaults: %lld\n", pagefaults);
+
+	//printf("unlinking\n");
 	// unlink
 	CHECK(gpuvm_unlink(ha, 0));
+	//printf("unlinked a\n");
 	CHECK(gpuvm_unlink(hb, 0));
+	//printf("unlinked b\n");
 	CHECK(gpuvm_unlink(hc, 0));
+	//printf("unlinked c\n");
 
+	//printf("freeing OpenCL buffers\n");
 	// free OpenCL buffers
 	clReleaseMemObject(da);
 	clReleaseMemObject(db);
 	clReleaseMemObject(dc);
 
+	//printf("freeing host memory\n");
 	// free host memory
 	free(ha);
 	free(hb);
 	free(hc);
 	free(hg);
 
+	//printf("finished\n");
 	return 0;
 }  // end of main()

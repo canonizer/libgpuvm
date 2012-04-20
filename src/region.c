@@ -115,10 +115,12 @@ static region_t *tree_find_region(const region_node_t *node, const void *ptr) {
 
 /** finds the minimum (leftmost) node in the tree; this may be the node itself */
 static region_node_t **tree_min_pnode(region_node_t **pnode) {
-	if((*pnode)->left)
-		tree_min_pnode(&(*pnode)->left);
+	region_node_t *left = (*pnode)->left;
+	//fprintf(stderr, "left subnode=%p\n", left);
+	if(left != NULL)
+		return tree_min_pnode(&(*pnode)->left);
 	else
-		pnode;
+		return pnode;
 }
 
 /** removes the region, if any, from the tree
@@ -126,16 +128,24 @@ static region_node_t **tree_min_pnode(region_node_t **pnode) {
 		as there may be a different node
 		@param region the region to be removed
  */
-static void tree_remove_from_node(region_node_t **pnode, const region_t *region) {
-	if(!*pnode)
+static void tree_remove_from_node
+(region_node_t **pnode, const region_t *region)
+{
+	//fprintf(stderr, "node = %p, region = %p\n", *pnode, region);
+	//fprintf(stderr, "node->region = %p\n", (*pnode)->region);
+	if(!*pnode || !(*pnode)->region) {
+		fprintf(stderr, "tree_remove_from_node: invalid region\n");
 		return;
+	}
 	if((*pnode)->region == region) {
 		// remove from this node
 		region_node_t *node = *pnode;
 		if(!node->left && !node->right) {
+			//fprintf(stderr, "removing from leaf\n");
 			*pnode = 0;
 			sfree(node);			
 		} else if(!node->left || !node->right) {
+			//fprintf(stderr, "removing from line\n");
 			if(!node->left) {
 				*pnode = node->right;
 			} else {
@@ -143,13 +153,17 @@ static void tree_remove_from_node(region_node_t **pnode, const region_t *region)
 			}
 			sfree(node);
 		} else {
+			//fprintf(stderr, "removing from inner\n");
 			// both nodes are non-null find min in right subtree
 			// TODO: add implementations which alternate between max in left subtree and min in
 			// right subtree
+			//fprintf(stderr, "right subnode=%p\n", node->right);
 			region_node_t **pmin_node = tree_min_pnode(&node->right);
-			node->region = (*pmin_node)->region;
-			sfree(*pmin_node);
-			*pmin_node = 0;
+			region_node_t *min_node = *pmin_node;
+			//fprintf(stderr, "minimum subnode found, min_node=%p\n", *pmin_node);
+			node->region = min_node->region;
+			*pmin_node = min_node->right;
+			sfree(min_node);
 		}
 	} else {
 		// remove from one of subnodes
@@ -236,6 +250,23 @@ int region_is_protected(const region_t *region) {
 	return region->prot_status != (PROT_READ | PROT_WRITE);
 }
 
+int region_protect_after(region_t *region, int flags) {
+	flags &= GPUVM_READ_WRITE;
+	int new_prot_status;
+	if(flags == GPUVM_READ_WRITE)
+		new_prot_status = PROT_NONE;
+	else if(flags == GPUVM_READ_ONLY)
+		new_prot_status = PROT_READ;
+	if(new_prot_status != region->prot_status) {
+		if(mprotect(region->range.ptr, region->range.nbytes, new_prot_status)) {
+			fprintf(stderr, "region_protect: can\'t set memory protection\n");
+			return GPUVM_EPROT;
+		}
+		region->prot_status = new_prot_status;
+	}
+	return 0;
+}  // region_protect_after
+
 int region_unprotect(region_t *region) {
 	if(mprotect(region->range.ptr, region->range.nbytes, PROT_READ | PROT_WRITE)) {
 		fprintf(stderr, "region_unprotect: can\'t remove memory protection\n");
@@ -262,12 +293,17 @@ int region_post_unprotect(region_t *region) {
 }
 
 void region_free(region_t *region) {
+	if(!region)
+		return;
+	//fprintf(stderr, "removing region protection\n");
+	if(region->prot_status != (PROT_READ | PROT_WRITE))
+		region_unprotect(region);
+	//fprintf(stderr, "removing region from tree\n");
 	tree_remove(region);
 	if(region->subreg_list)
 		fprintf(stderr, "region_free: removing region with subregions\n");
+	//fprintf(stderr, "removing region semaphore\n");
 	semaph_destroy(&region->unprot_sem);
-	if(region->prot_status != (PROT_READ | PROT_WRITE))
-		region_unprotect(region);
 	sfree(region);
 	//fprintf(stderr, "region freed\n");
 }

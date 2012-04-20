@@ -33,13 +33,11 @@ int subreg_alloc(subreg_t **p, void *hostptr, size_t nbytes, int idev) {
 		new_subreg->actual_host = 1;
 		new_subreg->actual_mask = 0;
 	}
-#if 0
 	if(pthread_mutex_init(&new_subreg->mutex, 0)) {
 		fprintf(stderr, "subreg_alloc: can\'t init mutex");
 	 	sfree(new_subreg);
 		return GPUVM_ERROR;
 	}
-#endif
 
 	// allocate or find region for this subregion
 	int err;
@@ -61,8 +59,8 @@ int subreg_alloc(subreg_t **p, void *hostptr, size_t nbytes, int idev) {
 	}
 	// protect region if the subregion is initially on device
 	region = new_subreg->region;
-	if(idev >= 0 && !region_is_protected(region)) {
-		err = region_protect(region);
+	if(idev >= 0) {
+		err = region_protect_after(region, GPUVM_READ_WRITE);
 		if(err) {
 			subreg_free(new_subreg);
 			return err;
@@ -76,33 +74,34 @@ int subreg_alloc(subreg_t **p, void *hostptr, size_t nbytes, int idev) {
 
 void subreg_free(subreg_t *subreg) {
 	// detach subregion from region
+	//fprintf(stderr, "removing from region\n");
+	region_t *region = subreg->region;
 	region_remove_subreg(subreg->region, subreg);
 
 	// free region if empty
-	region_t *region = subreg->region;
-	if(!region->nsubregs)
+	if(!region->nsubregs) {
+		//fprintf(stderr, "removing region\n");
 		region_free(region);
+	}
 
-	// pthread_mutex_destroy(&subreg->mutex);
+	pthread_mutex_destroy(&subreg->mutex);
 	sfree(subreg);
-	//fprintf(stderr, "subregion deallocated\n");
+	//fprintf(stderr, "subreg freed\n");
 }
 
 static int subreg_lock(subreg_t *subreg) {
-	// no-op - due to global lock
-	// if(pthread_mutex_lock(&subreg->mutex)) {
-	//	fprintf(stderr, "subreg_lock: can\'t lock mutex");
-	//	return GPUVM_ERROR;
-	// }
+	if(pthread_mutex_lock(&subreg->mutex)) {
+		fprintf(stderr, "subreg_lock: can\'t lock mutex");
+		return GPUVM_ERROR;
+	}
 	return 0;
 }
 
 static int subreg_unlock(subreg_t *subreg) {
-	// no-op - due to global lock
-	//if(pthread_mutex_unlock(&subreg->mutex)) {
-	//	fprintf(stderr, "subreg_unlock: can\'t unlock mutex");
-	//	return GPUVM_ERROR;
-	//}
+	if(pthread_mutex_unlock(&subreg->mutex)) {
+		fprintf(stderr, "subreg_unlock: can\'t unlock mutex");
+		return GPUVM_ERROR;
+	}
 	return 0;
 }
 
@@ -128,58 +127,46 @@ static int subreg_link_sync_to_host
 		 subreg->range.ptr - subreg->host_array->range.ptr);
 }
 
-int subreg_sync_to_device(subreg_t *subreg, unsigned idev) {
+int subreg_sync_to_device(subreg_t *subreg, unsigned idev, int flags) {
+	flags &= GPUVM_READ_WRITE;
 	int err;
-#if 0
+
+	// check usage info
+	// TODO: optionally, detect invalid sharing
 	if(err = subreg_lock(subreg))
 		return err;
-#endif
+	subreg->device_usage_count++;
+	if(subreg->device_usage != flags && 
+		 !(flags == GPUVM_READ_ONLY && subreg->device_usage == GPUVM_READ_WRITE))
+		subreg->device_usage = flags;
+	if(err = subreg_unlock(subreg))
+		return err;
+
 	if(!((subreg->actual_mask >> idev) & 1ul)) {
 		// need to copy to device
 		// lock region and remove protection if it is in place
 		region_t *region = subreg->region;
 		host_array_t* host_array = subreg->host_array;
-#if 0
-		if(err = region_lock(region)) {
-			subreg_unlock(subreg);
-			return err;
-		}
-#endif
+
 		// "remove" protection by causing segmentation fault if region is protected
 		err += *(char*)subreg->range.ptr;
 		
 		// need to copy from host to this device
-		if(err = subreg_link_sync_to_device(subreg, host_array->links[idev])) {
-#if 0
-			region_unlock(region);
-			subreg_unlock(subreg);
-#endif
+		link_t *link = host_array->links[idev];
+		fprintf(stderr, "host -> device, subreg = %p, link = %p\n", subreg, link);
+		if(err = subreg_link_sync_to_device(subreg, link)) {
 			return err;
 		}
 		// TODO: check these things for atomicity
 		subreg->actual_device = idev;
 		subreg->actual_mask |= 1ul << idev;
 
-#if 0
-		if(err = region_unlock(region)) {
-			subreg_unlock(subreg);
-			return err;
-		}
-#endif
 	}  // if already on device
-#if 0
-	if(err = subreg_unlock(subreg))
-		return err;
-#endif
 	return 0;
 }  // subreg_sync_to_device
 
 int subreg_sync_to_host(subreg_t *subreg) {
 	int err;
-#if 0
-	if(err = subreg_lock(subreg))
-		return err;
-#endif
 
 	// check if already on host
 	if(!subreg->actual_host) {
@@ -187,82 +174,48 @@ int subreg_sync_to_host(subreg_t *subreg) {
 		unsigned idev = subreg->actual_device;
 		host_array_t *host_array = subreg->host_array;
 
-#if 0
-		// lock region
-		region_t *region = subreg->region;
-		if(err = region_lock(region)) {
-			subreg_unlock(subreg);
-			return err;
-		}
-#endif
-
 		// do actualy copying
-		if(err = subreg_link_sync_to_host(subreg, host_array->links[idev])) {
-#if 0
-			region_unlock(region);
-			subreg_unlock(subreg);
-#endif
+		link_t *link = host_array->links[idev];
+		fprintf(stderr, "device -> host, subreg = %p, link = %p\n", subreg, link);
+		if(err = subreg_link_sync_to_host(subreg, link)) {
 			return err;
-		}
-		// if anything is copied to host, device state loses actuality
-		subreg->actual_host = 1;
-		subreg->actual_device = NO_ACTUAL_DEVICE;
-		subreg->actual_mask = 0ul;
-		
-#if 0
-		if(err = region_unlock(region)) {
-			subreg_unlock(subreg);
-			return err;
-		}
-#endif
-	}  // if(!actual_on_host)
-	
-#if 0
-	if(err = subreg_unlock(subreg))
-		return err;
-#endif
+		}		
+	}  // if(!actual_on_host)	
+	// device ALWAYS uses actuality when subregion is synced to host
+	subreg->actual_host = 1;
+	subreg->actual_device = NO_ACTUAL_DEVICE;
+	subreg->actual_mask = 0ul;
+
 	return 0;
 }  // subreg_sync_to_host
 
 int subreg_after_kernel(subreg_t *subreg, unsigned idev) {
-	// lock subregion
+
 	int err;
-	if(err = subreg_lock(subreg))
-		return err;
 
 	// update subregion actuality
-	subreg->actual_host = 0;
-	subreg->actual_device = idev;
-	subreg->actual_mask = 1ul << idev;
-
-	// lock region
-	region_t *region = subreg->region;
-#if 0
-	if(err = region_lock(region)) {
-		subreg_unlock(subreg);
-		return err;
+	if(subreg->device_usage == GPUVM_READ_WRITE) {
+		subreg->actual_host = 0;
+		subreg->actual_device = idev;
+		subreg->actual_mask = 1ul << idev;
+	} else if(subreg->device_usage == GPUVM_READ_ONLY) {
+		// do nothing here
+	} else {
+		// this is an error
+		fprintf(stderr, "subreg_after_kernel: invalid usage flags\n");
+		return -1;
 	}
-#endif
+
+	region_t *region = subreg->region;
 
 	// turn on region memory protection
-	if(!region_is_protected(region) && (err = region_protect(region))) {
-#if 0
-		region_unlock(region);
-		subreg_unlock(subreg);
-#endif
+	if(err = region_protect_after(region, subreg->device_usage))
 		return err;
-	}
 
-#if 0
-	// unlock region
-	if(err = region_unlock(region)) {
-		subreg_unlock(subreg);
-		return err;
-	}
+	// update usage info; locking is unnecessary due to global lock
+	subreg->device_usage_count--;
+	if(!subreg->device_usage_count) 
+		subreg->device_usage = 0;
 
-	// unlock subregion
-	if(err = subreg_unlock(subreg))
-		return err;
-#endif
 	return 0;
 }  // subreg_after_kernel

@@ -44,8 +44,17 @@ void region_free(region_t *region);
 		@param region memory region to protect. When global lock is reader, region lock must
 		be acquired prior to that
 		@returns 0 if successful and a negative error code if not
+		@note deprecated, use region_protect_after()
  */
 int region_protect(region_t *region);
+
+/** protects region after using one of its subregions on device 
+		@param region the region to protect
+		@param flags device flags with which region's subregion was used. Currently, must
+		be either ::GPUVM_READ_WRITE or ::GPUVM_READ_ONLY
+		@returns 0 if successful, and a negative error code if not
+ */
+int region_protect_after(region_t *region, int flags);
 
 /** checks whether the region is protected 
 		@param region region to check

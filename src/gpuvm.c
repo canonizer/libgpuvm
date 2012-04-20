@@ -258,7 +258,8 @@ int gpuvm_unlink(void *hostptr, unsigned idev) {
 	}
 	if(!hostptr)
 		return 0;
-
+	
+	//fprintf(stderr, "pre-unlinking\n");
 	if(stat_unlink_sync_back()) {
 		// make array to be synced to host and unprotected
 		gpuvm_pre_unlink(hostptr);
@@ -267,6 +268,7 @@ int gpuvm_unlink(void *hostptr, unsigned idev) {
 	if(lock_writer())
 		return GPUVM_ERROR;
 
+	//fprintf(stderr, "finding host array\n");
 	host_array_t *host_array;
 	int err = host_array_find(&host_array, hostptr, 0);
 	if(!host_array) {
@@ -274,13 +276,18 @@ int gpuvm_unlink(void *hostptr, unsigned idev) {
 		fprintf(stderr, "gpuvm_unlink: not a valid pointer\n");
 		return GPUVM_EHOSTPTR;
 	}
+
+	//fprintf(stderr, "removing link\n");
 	if(err = host_array_remove_link(host_array, idev)) {
 		unlock_writer();
 		return err;
 	}
+
+	//fprintf(stderr, "freeing host array\n");
 	if(!host_array_has_links(host_array))
 		host_array_free(host_array);
 
+	//fprintf(stderr, "finished unlinking\n");
 	if(unlock_writer())
 		return GPUVM_ERROR;
 
@@ -319,7 +326,7 @@ int gpuvm_kernel_begin(void *hostptr, unsigned idev, int flags) {
 		fprintf(stderr, "gpuvm_kernel_begin: invalid device number\n");
 		return GPUVM_EARG;		
 	}
-	if(flags != GPUVM_READ_WRITE) {
+	if(flags != GPUVM_READ_WRITE && flags != GPUVM_READ_ONLY) {
 		fprintf(stderr, "gpuvm_kernel_begin: invalid flags\n");
 		return GPUVM_EARG;
 	}
@@ -338,7 +345,7 @@ int gpuvm_kernel_begin(void *hostptr, unsigned idev, int flags) {
 	
 	// copy data to device if needed
 	int err;
-	if(err = host_array_sync_to_device(host_array, idev)) {
+	if(err = host_array_sync_to_device(host_array, idev, flags)) {
 		unlock_reader();
 		return err;
 	}

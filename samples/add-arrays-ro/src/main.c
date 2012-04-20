@@ -1,4 +1,4 @@
-/** OpenCL "hello, world!" sample; adding two arrays */
+/** adding two arrays; using GPUVM_READ_ONLY flag */
 
 #define _GNU_SOURCE
 
@@ -41,6 +41,9 @@
 #define SZ (N * sizeof(int))
 #define NRUNS 1
 
+cl_command_queue queue;
+cl_kernel add_arrays_kernel;
+
 void get_device(cl_device_id *pdev) {
 
 	// get platform
@@ -61,9 +64,39 @@ void get_device(cl_device_id *pdev) {
 	}
 }  // get_device
 
-int main(int argc, char** argv) {
+/** adds arrays on GPU, by calling OpenCL kernel; note that device pointers
+		which correspond to host pointers are obtained using gpuvm_xlate(), and are
+		not passed separately to the function */
+void add_arrays_on_gpu(int *c, int *a, int *b, int n) {
+	CHECK(gpuvm_kernel_begin(a, 0, GPUVM_READ_ONLY));
+	CHECK(gpuvm_kernel_begin(b, 0, GPUVM_READ_ONLY));
+	CHECK(gpuvm_kernel_begin(c, 0, GPUVM_READ_WRITE));
 
-	CHECK(gpuvm_pre_init(GPUVM_THREADS_BEFORE_INIT));	
+	cl_mem dc_arg = gpuvm_xlate(c, 0);
+	cl_mem da_arg = gpuvm_xlate(b, 0);
+	cl_mem db_arg = gpuvm_xlate(a, 0);
+	
+	// run program
+	CHECK(clSetKernelArg(add_arrays_kernel, 0, sizeof(cl_mem), &dc_arg));
+	CHECK(clSetKernelArg(add_arrays_kernel, 1, sizeof(cl_mem), &da_arg));
+	CHECK(clSetKernelArg(add_arrays_kernel, 2, sizeof(cl_mem), &db_arg));
+	size_t gws[1] = {n};
+	size_t lws[1] = {64};
+	size_t gwos[1] = {0};
+	CHECK(clEnqueueNDRangeKernel(queue, add_arrays_kernel, 1, gwos, 
+															 gws, lws, 0, 0, 0));
+	CHECK(clFinish(queue));
+
+	// on kernel end
+	//printf("actions on kernel end\n");
+	CHECK(gpuvm_kernel_end(a, 0));
+	CHECK(gpuvm_kernel_end(b, 0));
+	CHECK(gpuvm_kernel_end(c, 0));
+}
+
+int main(int argc, char** argv) {
+	
+	CHECK(gpuvm_pre_init(GPUVM_THREADS_BEFORE_INIT));
 	// get device
 	cl_device_id dev;
 	get_device(&dev);
@@ -74,7 +107,7 @@ int main(int argc, char** argv) {
 	CHECK_NULL(ctx);
 
 	// create queue
-	cl_command_queue queue = clCreateCommandQueue(ctx, dev, 0, 0);
+	queue = clCreateCommandQueue(ctx, dev, 0, 0);
 	CHECK_NULL(queue);
 
 	CHECK(gpuvm_pre_init(GPUVM_THREADS_AFTER_INIT));
@@ -86,25 +119,8 @@ int main(int argc, char** argv) {
 	cl_program program = clCreateProgramWithSource(ctx, lineCount, (const char**)sourceLines, 0, 0);
 	CHECK_NULL(program);
 	CHECK(clBuildProgram(program, 1, &dev, 0, 0, 0));
-	cl_kernel add_arrays_kernel = clCreateKernel(program, "add_arrays", 0);
+	add_arrays_kernel  = clCreateKernel(program, "add_arrays", 0);
 	CHECK_NULL(add_arrays_kernel);
-	cl_kernel init_array_kernel = clCreateKernel(program, "init_array", 0);
-	CHECK_NULL(init_array_kernel);
-	cl_kernel empty_kernel = clCreateKernel(program, "empty", 0);
-	CHECK_NULL(empty_kernel);
-
-	size_t gws[1], lws[1], gwos[1];
-
-	// run an empty kernel, maybe doing so creates more worker threads
-	/*
-	cl_mem empty_buf = 0;
-	CHECK(clSetKernelArg(empty_kernel, 0, sizeof(cl_mem), &empty_buf));
-	gws[0] = N;
-	lws[0] = 64;
-	gwos[0] = 0;
-	CHECK(clEnqueueNDRangeKernel(queue, empty_kernel, 1, gwos, gws, lws, 0,
-															 0, 0));
-	CHECK(clFinish(queue));	*/
 
 	// initialize GPUVM
 	CHECK(gpuvm_init(1, (void**)&queue, 
@@ -119,10 +135,10 @@ int main(int argc, char** argv) {
 	CHECK_NULL(ha);
 	CHECK_NULL(hb);
 	CHECK_NULL(hg);
-	/*for(int i = 0; i < N; i++) {
+	for(int i = 0; i < N; i++) {
 		ha[i] = i;
 		hb[i] = i + 1;
-		}*/
+	}
 
 	// allocate device data
 	cl_mem da = clCreateBuffer(ctx, 0, SZ, 0, 0);
@@ -133,70 +149,18 @@ int main(int argc, char** argv) {
 	CHECK_NULL(dc);
 
 	// link host buffers to device buffers
-	printf("linking buffers\n");
-	CHECK(gpuvm_link(ha, SZ, 0, (void*)da, GPUVM_OPENCL | GPUVM_ON_DEVICE));
-	CHECK(gpuvm_link(hb, SZ, 0, (void*)db, GPUVM_OPENCL | GPUVM_ON_DEVICE));
-	CHECK(gpuvm_link(hc, SZ, 0, (void*)dc, GPUVM_OPENCL | GPUVM_ON_DEVICE));
-
-	// initialize arrays
-	printf("initializing arrays\n");
-	cl_event ev;
-	// initialize array a
-	CHECK(gpuvm_kernel_begin(ha, 0, GPUVM_READ_WRITE));
-	int disp = 0;
-	CHECK(clSetKernelArg(init_array_kernel, 0, sizeof(cl_mem), &da));
-	CHECK(clSetKernelArg(init_array_kernel, 1, sizeof(int), &disp));
-	gws[0] = N;
-	lws[0] = 64;
-	gwos[0] = 0;
-	CHECK(clEnqueueNDRangeKernel(queue, init_array_kernel, 1, gwos, gws, lws, 0,
-															 0, &ev));
-	printf("kernel launched, waiting to finish\n");
-	CHECK(clWaitForEvents(1, &ev));
-	//CHECK(clFinish(queue));
-	printf("kernel finished\n");
-	CHECK(gpuvm_kernel_end(ha, 0));
-	printf("array a initialized\n");
-
-	CHECK(gpuvm_kernel_begin(hb, 0, GPUVM_READ_WRITE));
-	disp = 1;
-
-	CHECK(clSetKernelArg(init_array_kernel, 0, sizeof(cl_mem), &db));
-	CHECK(clSetKernelArg(init_array_kernel, 1, sizeof(int), &disp));
-	gws[0] = N;
-	lws[0] = 64;
-	gwos[0] = 0;
-	CHECK(clEnqueueNDRangeKernel(queue, init_array_kernel, 1, gwos, gws, lws, 0,
-															 0, &ev));
-	//CHECK(clFinish(queue));
-	CHECK(clWaitForEvents(1, &ev));
-	CHECK(gpuvm_kernel_end(hb, 0));
-	printf("array b initialized\n");
+	//printf("linking buffers\n");
+	CHECK(gpuvm_link(ha, SZ, 0, (void*)da, GPUVM_OPENCL | GPUVM_ON_HOST));
+	CHECK(gpuvm_link(hb, SZ, 0, (void*)db, GPUVM_OPENCL | GPUVM_ON_HOST));
+	CHECK(gpuvm_link(hc, SZ, 0, (void*)dc, GPUVM_OPENCL | GPUVM_ON_HOST));
 
 	// before-kernel actions
 	printf("adding arrays\n");
+
 	unsigned irun;
 	for(irun = 0; irun < NRUNS; irun++) {
-		CHECK(gpuvm_kernel_begin(ha, 0, GPUVM_READ_WRITE));
-		CHECK(gpuvm_kernel_begin(hb, 0, GPUVM_READ_WRITE));
-		CHECK(gpuvm_kernel_begin(hc, 0, GPUVM_READ_WRITE));
-	
-		// run program
-		CHECK(clSetKernelArg(add_arrays_kernel, 0, sizeof(cl_mem), &dc));
-		CHECK(clSetKernelArg(add_arrays_kernel, 1, sizeof(cl_mem), &da));
-		CHECK(clSetKernelArg(add_arrays_kernel, 2, sizeof(cl_mem), &db));
-		gws[0] = N;
-		lws[0] = 64;
-		gwos[0] = 0;
-		CHECK(clEnqueueNDRangeKernel(queue, add_arrays_kernel, 1, gwos, gws, 
-																 lws, 0, 0, &ev));
-		//CHECK(clFinish(queue));
-		CHECK(clWaitForEvents(1, &ev));
-		// on kernel end
-		//printf("actions on kernel end\n");
-		CHECK(gpuvm_kernel_end(ha, 0));
-		CHECK(gpuvm_kernel_end(hb, 0));
-		CHECK(gpuvm_kernel_end(hc, 0));
+		// do work on GPU
+		add_arrays_on_gpu(hc, ha, hb, N);
 
 		// evaluate "gold" result
 		for(int i = 0; i < N; i++)
@@ -219,21 +183,33 @@ int main(int argc, char** argv) {
 	for(int i = 0; i < N; i += step)
 		printf("hc[%d] = %d\n", i, hc[i]);
 
+	// print statistics
+	unsigned long long pagefaults = 0;
+	CHECK(gpuvm_stat(GPUVM_STAT_PAGEFAULTS, &pagefaults));
+	printf("number of pagefaults: %lld\n", pagefaults);
+
+	//printf("unlinking\n");
 	// unlink
 	CHECK(gpuvm_unlink(ha, 0));
+	//printf("unlinked a\n");
 	CHECK(gpuvm_unlink(hb, 0));
+	//printf("unlinked b\n");
 	CHECK(gpuvm_unlink(hc, 0));
+	//printf("unlinked c\n");
 
+	//printf("freeing OpenCL buffers\n");
 	// free OpenCL buffers
 	clReleaseMemObject(da);
 	clReleaseMemObject(db);
 	clReleaseMemObject(dc);
 
+	//printf("freeing host memory\n");
 	// free host memory
 	free(ha);
 	free(hb);
 	free(hc);
 	free(hg);
 
+	//printf("finished\n");
 	return 0;
 }  // end of main()

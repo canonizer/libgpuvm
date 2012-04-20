@@ -154,6 +154,7 @@ int ocl_memcpy_d2h
 	int cl_err = clEnqueueReadBuffer(queue, buffer, CL_FALSE, devoff, nbytes,
 										 tgt, 0, 0, &ev);
 	//fprintf(stderr, "copied data to device\n");
+	//clFlush(queue);
 	clWaitForEvents(1, &ev);
 	if(cl_err != CL_SUCCESS) {
 		if(cl_err == CL_MEM_OBJECT_ALLOCATION_FAILURE || 
@@ -188,6 +189,7 @@ static int ocl_memcpy_h2d(unsigned idev, void *tgt, void *src, size_t nbytes,
 	int cl_err = clEnqueueWriteBuffer(queue, buffer, CL_FALSE, devoff, nbytes,
 																		src, 0, 0, &ev);
 	//fprintf(stderr, "copied data to device\n");
+	//clFlush(queue);
 	clWaitForEvents(1, &ev);
 	if(cl_err != CL_SUCCESS) {
 		if(cl_err == CL_MEM_OBJECT_ALLOCATION_FAILURE || 

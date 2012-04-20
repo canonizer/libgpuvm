@@ -1,5 +1,5 @@
-#ifndef _GPUVM_HOST_ARRAY_H_
-#define _GPUVM_HOST_ARRAY_H_
+#ifndef GPUVM_HOST_ARRAY_H_
+#define GPUVM_HOST_ARRAY_H_
 
 /** @file host-array.h
 		this file contains definition for the host_array_t structure, which corresponds to a
@@ -54,9 +54,10 @@ int host_array_find(host_array_t **p, void *hostptr, size_t nbytes);
 /** synchronizes the array (if necessary) so that it is actual on the specified device
 		@param the array to synchronize
 		@param idev the device on which to make the array synchronous
+		@param flags usage flags, either ::GPUVM_READ_WRITE or ::GPUVM_READ_ONLY
 		@returns 0 if successful and a negative error code if not
  */
-int host_array_sync_to_device(host_array_t *host_array, unsigned idev);
+int host_array_sync_to_device(host_array_t *host_array, unsigned idev, int flags);
 
 /** performs necessary actions after device counterpart of the array has been used in the
 		kernel (for both reading and writing). This includes marking array as not-actual on

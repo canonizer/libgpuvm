@@ -135,7 +135,9 @@ void *smalloc(size_t nbytes) {
 			// bypass block being allocated and return its free memory
 			*pblock = block->next;
 			block->next = (block_header_t*)ALLOC_CANARY;
-			return block + 1;
+			block_header_t *result = block + 1;
+			//fprintf(stderr, "allocated %p\n", result);
+			return result;
 		} else if(!itry) { 
 			if(!alloc_os_blocks())
 				return 0;
@@ -211,7 +213,8 @@ void sfree(void *ptr) {
 
 	// free OS-allocated pages if necessary
 	free_os_blocks();
-	
+
+	//fprintf(stderr, "freed %p\n", ptr);	
 }  // sfree
 
 // old allocation procedures

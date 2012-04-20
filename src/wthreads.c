@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/mman.h>
 #include <sys/time.h>
 
 #include "gpuvm.h"
@@ -125,21 +126,37 @@ static void *unprot_thread(void *dummy_param) {
 			return 0;
 
 		case REGION_OP_UNPROTECT:
+			fprintf(stderr, "unprotect request received\n");
 			stat_inc(GPUVM_STAT_PAGEFAULTS);
-			// remove protection, stop threads if necessary
-			if(!pending_regions) {
-				if(stat_enabled())
-					start_time = rtime_get();
-				//fprintf(stderr, "stopping other threads\n");
-				stop_other_threads();
-			}
-			if(region_is_protected(region))
+			if(region->prot_status == PROT_NONE) {
+				// fully unprotect region
+				// remove protection, stop threads if necessary
+				if(!pending_regions) {
+					if(stat_enabled())
+						start_time = rtime_get();
+					//fprintf(stderr, "stopping other threads\n");
+					stop_other_threads();
+				}				
 				region_unprotect(region);
-			region_post_unprotect(region);
+				region_post_unprotect(region);
+				fprintf(stderr, "unprotect request satisfied - BLOCK\n");
 			
-			pending_regions++;
-			elem.op = REGION_OP_SYNC_TO_HOST;
-			rqueue_put(&sync_queue_g, &elem);
+				pending_regions++;
+				elem.op = REGION_OP_SYNC_TO_HOST;
+				rqueue_put(&sync_queue_g, &elem);
+			} else if(region->prot_status == PROT_READ) {
+				// mark all data as actual on host only, no need to stop threads				
+				subreg_list_t *list;
+				region_unprotect(region);
+				for(list = region->subreg_list; list; list = list->next)
+					subreg_sync_to_host(list->subreg);
+				region_post_unprotect(region);
+				fprintf(stderr, "unprotect request satisfied - RO\n");
+			} else {
+				// do nothing
+				region_post_unprotect(region);
+				fprintf(stderr, "unprotect request satisfied - NONE\n");
+			}
 			break;
 
 		case REGION_OP_SYNCED_TO_HOST:
@@ -183,12 +200,14 @@ static void *sync_thread(void *dummy_param) {
 			return 0;
 
 		case REGION_OP_SYNC_TO_HOST:
+			fprintf(stderr, "syncing region to host\n");
 			// sync region to host
 			for(list = region->subreg_list; list; list = list->next)
 				subreg_sync_to_host(list->subreg);
 			
 			elem.op = REGION_OP_SYNCED_TO_HOST;
 			rqueue_put(&unprot_queue_g, &elem);
+			fprintf(stderr, "synced region to host\n");
 			break;
 
 		default:

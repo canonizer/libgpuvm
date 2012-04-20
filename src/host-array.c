@@ -125,16 +125,19 @@ void host_array_free(host_array_t *host_array) {
 	if(!host_array)
 		return;
 	// free links
+	//fprintf(stderr, "freeing links\n");
 	unsigned ilink;
 	for(ilink = 0; ilink < ndevs_g; ilink++)
 		link_free(host_array->links[ilink]);
 	sfree(host_array->links);
 	// free subregions
+	//fprintf(stderr, "freeing subregions\n");
 	unsigned isubreg;
 	for(isubreg = 0; isubreg < host_array->nsubregs; isubreg++)
 		subreg_free(host_array->subregs[isubreg]);
 	// free memory
 	sfree(host_array);
+	//fprintf(stderr, "freed host array\n");
 	//fprintf(stderr, "host array deallocated\n");
 }  // host_array_free
 
@@ -156,7 +159,7 @@ int host_array_find(host_array_t **p, void *hostptr, size_t nbytes) {
 		return 1;
 } // host_array_find
 
-int host_array_sync_to_device(host_array_t *host_array, unsigned idev) {
+int host_array_sync_to_device(host_array_t *host_array, unsigned idev, int flags) {
 	if(!host_array->links[idev]) {
 		fprintf(stderr, "host_array_sync_to_device: no link for array on device\n");
 		return GPUVM_ENOLINK;
@@ -164,7 +167,7 @@ int host_array_sync_to_device(host_array_t *host_array, unsigned idev) {
 	unsigned isubreg;
 	int err;
 	for(isubreg = 0; isubreg < host_array->nsubregs; isubreg++) {
-		err = subreg_sync_to_device(host_array->subregs[isubreg], idev);
+		err = subreg_sync_to_device(host_array->subregs[isubreg], idev, flags);
 		if(err)
 			return err;
 	}
@@ -187,8 +190,6 @@ int host_array_after_kernel(host_array_t *host_array, unsigned idev) {
 
 int host_array_remove_link(host_array_t *host_array, unsigned idev) {
 	link_t **plink = &host_array->links[idev];
-	if(!*plink)
-		return 0;
 	link_free(*plink);
 	*plink = 0;
 	return 0;

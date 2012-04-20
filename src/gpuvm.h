@@ -132,7 +132,8 @@ int gpuvm_library_exists();
 		@param devs devices to be used in the library. For OpenCL, each pointer must specify a
 		device queue. 
 		@param flags indicate device type and possibly usage strategy. Currently must include
-		::GPUVM_OPENCL, and a combination of optional ::GPUVM_STAT, ::GPUVM_WRITER_SIG_BLOCK
+		::GPUVM_OPENCL or ::GPUVM_CUDA (if compiled with CUDA support), and a
+		combination of optional ::GPUVM_STAT, ::GPUVM_WRITER_SIG_BLOCK
 		and ::GPUVM_UNLINK_NO_SYNC_BACK.
 		Note that if ::GPUVM_STAT is specified for OpenCL devices, the underlying
 		OpenCL queue must have profiling enabled, or OpenCL-related errors will occur during
@@ -194,7 +195,7 @@ void *gpuvm_xlate(void *hostptr, unsigned idev);
 		in a kernel
 		@param idev number of device on which a kernel is about to be launched
 		@param flags flags indicating possible buffer usage on device. Currently, must be
-		::GPUVM_READ_WRITE 
+		::GPUVM_READ_WRITE or ::GPUVM_READ_ONLY
 		@returns 0 if successful and error code if not
  */
 __attribute__((visibility("default")))

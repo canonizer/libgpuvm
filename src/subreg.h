@@ -27,14 +27,22 @@ typedef struct subreg_struct {
 	struct region_struct *region;
 	/** indicates the device where host_array is actual, or, in case of multiple devices,
 			the first such deivce; if there is none, must be #NO_ACTUAL_DEVICE */
-	volatile unsigned actual_device;
+	unsigned actual_device;
 	/** 1 if actual on host and 0 if not */
-	volatile unsigned actual_host;
+	unsigned actual_host;
 	/** the mask indicating on which devices the subregion is actual; bit 0 is for device 0,
 			bit 1 for device 1 etc */
-	volatile devmask_t actual_mask;
-	/** the mutex to lock and unlock the region in a multithreaded environment */
-	// pthread_mutex_t mutex;
+	devmask_t actual_mask;
+	/** device usage flags, either ::GPUVM_READ_ONLY or ::GPUVM_READ_WRITE */
+	int device_usage;
+	/** device usage count, incremented by a call to gpuvm_kernel_begin(), and
+			decremented by a call to gpuvm_kernel_end() */
+	unsigned device_usage_count;
+	/** the mutex to lock and unlock the region in a multithreaded environment;
+			note that subregion must be locked only for short periods of time to
+			maintain actual information; e.g., it must not be locked for OpenCL copy
+			or similar commands */
+	pthread_mutex_t mutex;
 } subreg_t;
 
 /** allocates a new subregion. The subregion is initially assumed to be actual on host 
@@ -54,9 +62,10 @@ void subreg_free(subreg_t *subreg);
 /** synchronizes subregion to device 
 		@param subreg the subregion to synchronize to device
 		@param idev the device to which to synchronize
+		@param flags usage flags, either ::GPUVM_READ_WRITE or ::GPUVM_READ_ONLY
 		@returns 0 if successful and a negative error code if not
  */
-int subreg_sync_to_device(subreg_t *subreg, unsigned idev);
+int subreg_sync_to_device(subreg_t *subreg, unsigned idev, int flags);
 
 /** synchronizes subregion to host
 		@param subreg the subregion to synchronize to host
