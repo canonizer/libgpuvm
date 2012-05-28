@@ -119,7 +119,9 @@ static int ocl_amd_hack_init(void) {
 		clSetEventCallback(ev, CL_COMPLETE, event_callback, 0);
 		clFlush(queue);
 		clReleaseEvent(ev);
+		return 0;
 	}  // for()
+	return 0;
 }  // 
 
 /** gets the time between start and end of a finished OpenCL command 
