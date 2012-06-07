@@ -47,9 +47,14 @@ void host_array_free(host_array_t *host_array);
 		@param hostptr start of memory range
 		@param nbytes the size of memory range; may be 0 if searching for pointer only
 		@returns 0 if either no array if found or the array found is the same as the host
-		range, and 1 if the array found is not the same as the host range
- */
+		range, and 1 if the array found is not the same as the host range */
 int host_array_find(host_array_t **p, void *hostptr, size_t nbytes);
+
+/** finds a host array which contains the given address
+		@param hostptr the address
+		@returns the host array found and 0 if none
+ */
+host_array_t *host_array_find_by_ptr(void *hostptr);
 
 /** synchronizes the array (if necessary) so that it is actual on the specified device
 		@param the array to synchronize

@@ -91,6 +91,7 @@ int host_array_alloc(host_array_t **p, void *hostptr, size_t nbytes, int idev) {
 		sfree(new_host_array);
 		return GPUVM_ESALLOC;
 	}
+	memset(new_host_array->links, 0, ndevs_g * sizeof(link_t));
 	
 	// generate subranges
 	memrange_t subranges[MAX_SUBREGS];
@@ -143,12 +144,21 @@ void host_array_free(host_array_t *host_array) {
 
 int host_array_find(host_array_t **p, void *hostptr, size_t nbytes) {
 	*p = 0;
-	// find region
-	region_t *region = region_find_region(hostptr);
-	if(!region)
-		return 0;
 	// find subregion
-	subreg_t *subreg = region_find_subreg(region, hostptr);
+	subreg_t *subreg = region_find_region_subreg_in_range(hostptr, nbytes);
+	/*region_t *region = region_find_region(hostptr);
+	if(!region) {
+		// try finding any intersecting region
+		region = region_find_region_in_range(hostptr, nbytes);
+		if(region) {
+			// return just any array found, not necessarily intersecting the range
+			*p = region->subreg_list->subreg->host_array;
+			return 1;
+		} else 
+			return 0;
+	}
+	// find subregion
+	subreg_t *subreg = region_find_subreg(region, hostptr);*/
 	if(!subreg)
 		return 0;
 	*p = subreg->host_array;
@@ -158,6 +168,16 @@ int host_array_find(host_array_t **p, void *hostptr, size_t nbytes) {
 	else
 		return 1;
 } // host_array_find
+
+host_array_t *host_array_find_by_ptr(void *hostptr) {
+	region_t *region = region_find_region(hostptr);
+	if(!region)
+		return 0;
+	subreg_t *subreg = region_find_subreg(region, hostptr);
+	if(!subreg)
+		return 0;
+	return subreg->host_array;
+}
 
 int host_array_sync_to_device(host_array_t *host_array, unsigned idev, int flags) {
 	if(!host_array->links[idev]) {
@@ -190,7 +210,9 @@ int host_array_after_kernel(host_array_t *host_array, unsigned idev) {
 
 int host_array_remove_link(host_array_t *host_array, unsigned idev) {
 	link_t **plink = &host_array->links[idev];
+	//fprintf(stderr, "freeing link\n");
 	link_free(*plink);
+	//fprintf(stderr, "link freed\n");
 	*plink = 0;
 	return 0;
 }  // host_array_remove_link

@@ -54,3 +54,29 @@ rtime_t rtime_get() {
 #endif
 	return rt;
 }
+
+memrange_cmp_t memrange_cmp
+(const memrange_t* a, const memrange_t*	b) {
+	//fprintf(stderr, "comparing memory ranges a = %p and b = %p\n", a, b);
+	if((char*)a->ptr + a->nbytes <= (char*)b->ptr)
+		return MR_CMP_LT;
+	if((char*)b->ptr + b->nbytes <= (char*)a->ptr)
+		return MR_CMP_GT;
+	if(a->ptr == b->ptr && a->nbytes == b->nbytes)
+		return MR_CMP_EQ;
+	return MR_CMP_INT;
+}
+
+int memrange_is_inside(const memrange_t* a, const memrange_t* b) {
+	return (char*)a->ptr <= (char*)b->ptr && 
+		(char*)a->ptr + a->nbytes >= (char*)b->ptr + b->nbytes;
+}
+
+memrange_cmp_t memrange_pos_ptr(const memrange_t* range, const void *aptr) {
+	if((char*)aptr < (char*)range->ptr)
+		return MR_CMP_LT;
+	else if((char*)aptr < (char*)range->ptr + range->nbytes)
+		return MR_CMP_INT;
+	else
+		return MR_CMP_GT;
+}

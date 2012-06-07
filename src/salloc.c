@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/mman.h>
 
 #include "gpuvm.h"
@@ -51,7 +52,7 @@ typedef struct block_header_s {
 #define MAX_HOLD_PAGES (MAX_HOLD_RATIO * OS_BLOCK_PAGES)
 
 /** the value written to next field of an allocated block, checked on free */
-#define ALLOC_CANARY (~(ptrdiff_t)0)
+#define ALLOC_CANARY 0xabababababababab /* (~(ptrdiff_t)0)*/
 
 #ifndef __APPLE__
 #define ANONYMOUS_MAP_FLAG MAP_ANONYMOUS
@@ -64,6 +65,14 @@ size_t npages_held_g = 0;
 
 /** start of block list */
 block_header_t *block_list_g = 0;
+
+/** dumps the list of free blocks; for debug use only */
+static void dump_free_blocks(void) {
+	block_header_t *block;
+	for(block = block_list_g; block = block->next; block) {
+		fprintf(stderr, "{%p, %zd}%s", block, block->size, block->next ? "->" : "\n");
+	}
+}  // dump_free_blocks()
 
 /** 
 		gets blocks from OS and inserts them into sorted list of free blocks
@@ -123,19 +132,22 @@ void *smalloc(size_t nbytes) {
 		if(*pblock) {
 			// block found
 			block_header_t *block = *pblock;
-			if(block->size - real_nbytes > 2 * sizeof(block_header_t)) {
+			size_t rblocks = real_nbytes / sizeof(block_header_t) + 
+					(real_nbytes % sizeof(block_header_t) ? 1 : 0);
+			size_t rsize = rblocks * sizeof(block_header_t);
+			if(block->size - rsize >= 2 * sizeof(block_header_t)) {
 				// split block
-				block_header_t *new_block = block + real_nbytes / sizeof(block_header_t) + 
-					(real_nbytes % sizeof(block_header_t) != 0 ? 1 : 0);
+				block_header_t *new_block = block + rblocks;
 				new_block->next = block->next;
-				new_block->size = block->size - (new_block - block) * sizeof(block_header_t);
+				new_block->size = block->size - rsize;
 				block->next = new_block;
-				block->size -= (new_block - block) * sizeof(block_header_t);
+				block->size = rsize;
 			}
 			// bypass block being allocated and return its free memory
 			*pblock = block->next;
 			block->next = (block_header_t*)ALLOC_CANARY;
 			block_header_t *result = block + 1;
+			memset(result, 0xcd, block->size - sizeof(block_header_t));
 			//fprintf(stderr, "allocated %p\n", result);
 			return result;
 		} else if(!itry) { 
@@ -171,13 +183,18 @@ static void free_os_blocks(void) {
 		@param block2 the second block. Its address must be greater than that of the first block
 */
 static void coalesce(block_header_t *block1, block_header_t *block2) {
+	if(!block1 || !block2)
+		return;
 	if(block2 <= block1)
 		return;
 	if((block2 - block1) * sizeof(block_header_t) != block1->size)
 		return;
 	if((ptrdiff_t)block1 / GPUVM_PAGE_SIZE != (ptrdiff_t)block2 / GPUVM_PAGE_SIZE)
 		return;
+	//fprintf(stderr, "coalescing blocks {%p, %zd} and {%p, %zd}\n", block1, 
+	//				block1->size, block2, block2->size);
 	block1->size += block2->size;
+	block1->next = block2->next;
 	if(block1->size == GPUVM_PAGE_SIZE)
 		npages_held_g++;
 }  // coalesce
@@ -185,6 +202,9 @@ static void coalesce(block_header_t *block1, block_header_t *block2) {
 void sfree(void *ptr) {
 	if(!ptr)
 		return;
+
+	//fprintf(stderr, "blocks before free:\n");
+	//dump_free_blocks();
 	
 	// check canary
 	block_header_t *block = (block_header_t*)ptr - 1;
@@ -196,6 +216,15 @@ void sfree(void *ptr) {
 		npages_held_g++;
 
 	// add to sorted free list
+	/*block_header_t **pblock;
+	for(pblock = &block_list_g; *pblock && *pblock < block; 
+			pblock = &(*pblock)->next);
+	block->next = *pblock;
+	*pblock = block;*/
+	// destroy block info
+	//fprintf(stderr, "ptr = %p, block = %p, block size = %zd\n", ptr, block, block->size);
+	memset(block + 1, 0xef, block->size - sizeof(block_header_t));
+	//fprintf(stderr, "memory set");
 	block_header_t *prev_block = 0, *next_block;
 	for(next_block = block_list_g; next_block && next_block < block;
 			prev_block = next_block, next_block = next_block->next);
@@ -206,14 +235,17 @@ void sfree(void *ptr) {
 	block->next = next_block;
 
 	// coalesce
-	if(next_block)
-		coalesce(block, next_block);
-	if(prev_block)
-		coalesce(prev_block, block);
+	//if(next_block)
+	coalesce(block, next_block);
+		 //if(prev_block)
+	coalesce(prev_block, block);
 
 	// free OS-allocated pages if necessary
 	free_os_blocks();
 
+	//fprintf(stderr, "blocks after free:\n");
+	//dump_free_blocks();
+	
 	//fprintf(stderr, "freed %p\n", ptr);	
 }  // sfree
 

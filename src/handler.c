@@ -85,10 +85,10 @@ void call_old_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 void sigprot_handler(int signum, siginfo_t *siginfo, void *ucontext) {
 
 	// TODO: pass info about the thread which caused the exception to the main 
-	//int tid = self_thread();
+	int tid = self_thread();
 	// cut off NULL addresses and signals not caused by mprotect
 	void *ptr = siginfo->si_addr;
-	//fprintf(stderr, "thread %d: in SIGSEGV handler at %p\n", tid, ptr);
+	//fprintf(stderr, "thread %d: entering SIGSEGV handler at %p\n", tid, ptr);
 	
 	if(!ptr) {
 		fprintf(stderr, "sigsegv_handler: pointer is NULL \n");

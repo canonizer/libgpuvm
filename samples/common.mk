@@ -9,7 +9,7 @@ SRC_C=src/*.$(STDEXT)
 SRC=$(SRC_C)
 TMP=*~ src/*~ $(TGT)
 #INCLUDE_DIRS += -I../../src
-LIB_DIRS += -L../../bin
+LIB_DIRS += -L../../bin -L/usr/lib
 OSNAME:=$(shell uname -s)
 CFLAGS = -O2
 ifeq ($(CC), gcc)

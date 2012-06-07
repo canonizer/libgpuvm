@@ -105,13 +105,35 @@ int region_remove_subreg(region_t *region, struct subreg_struct *subreg);
 		@returns pointer to subregion containing ptr or 0 if none. This may happen, e.g.,
 		because the pointer is outside the region, or there is no region 
  */
-struct subreg_struct *region_find_subreg(const region_t *region, const void *ptr);
+struct subreg_struct *region_find_subreg(const region_t *region, const void
+		*ptr);
+
+/** finds the subregion of the region which intersects the specified range; if
+		multiple such subregion exists, any one can be returned 
+		@region the region in which a subregion is searched for
+		@param ptr the start of the range being search for
+		@param nbytes the size of the range being searched for
+		@returns pointer to a subregion intersecting the range if found or 0 if none
+*/
+struct subreg_struct *region_find_subreg_in_range
+(const region_t *region, void *ptr, size_t nbytes);
 
 /** finds the region containing specific host address in the region tree 
 		@param ptr the address to find
 		@returns the region containing the pointer in question and 0 if none
  */
 region_t *region_find_region(const void *ptr);
+
+/** finds a subregion region which contains an address from the range; in case there are
+		multiple such subregions, one of them is returned, although it is not specified
+		which one exactly
+		@param ptr the starting address of the range
+		@param nbytes the size of the range in bytes
+		@returns a subregion containing one of the addresses of the range, and 0 if
+		none 
+ */
+struct subreg_struct *region_find_region_subreg_in_range
+(void *ptr, size_t nbytes);
 
 /** locks the region 
 		@param region the region to lock

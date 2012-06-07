@@ -25,6 +25,8 @@ typedef struct region_node_struct {
 /** root of the region tree */
 region_node_t *region_tree_g = 0;
 
+static void tree_dump(const region_node_t *node, int depth);
+
 /** recursive function adding a region to a tree node
 		@param pnode [inout] the node to which the region is being added. *pnode may be 0 in which case a new
 		node is allocated
@@ -80,10 +82,32 @@ static int tree_add_to_node(region_node_t **pnode, region_t *region) {
  */
 static int tree_add(region_t *region) {
 	//fprintf(stderr, "adding region to the tree\n");
+	//fprintf(stderr, "region tree dump before adding:\n");
+  //tree_dump(region_tree_g, 0);
 	int err = tree_add_to_node(&region_tree_g, region);
+	//fprintf(stderr, "region tree dump after adding:\n");
+  //tree_dump(region_tree_g, 0);
 	//fprintf(stderr, "region added to the tree\n");
 	return err;
 }
+
+/** dumps the tree to stdout; this function must be used for debugging only */
+static void tree_dump(const region_node_t *node, int depth) {
+	if(!node)
+		return;
+	tree_dump(node->left, depth + 1);
+	char pref[128];
+	int i;
+	for(i = 0; i < depth; i++)
+		pref[i] = ' ';
+	pref[depth] = '\0';
+	if(node->region)
+		fprintf(stderr, "%sregion = {%p, %zd}\n", pref, node->region->range.ptr, 
+						node->region->range.nbytes);
+	else
+		fprintf(stderr, "%sregion = NULL\n", pref);
+	tree_dump(node->right, depth + 1);
+}  // tree_dump()
 
 /** finds a region in the region tree by pointer 
 		@param node the tree in which to find the pointer
@@ -98,6 +122,8 @@ static region_t *tree_find_region(const region_node_t *node, const void *ptr) {
 	//fprintf(stderr, "node->region = %x\n", node->region);
 	//fprintf(stderr, "node->left = %x\n", node->left);
 	//fprintf(stderr, "node->right = %x\n", node->right);
+	//fprintf(stderr, "region = {%p, %zd}\n", node->region->range.ptr, 
+	//				node->region->range.nbytes);
 
 	// non-zero node - further search
 	switch(memrange_pos_ptr(&node->region->range, ptr)) {
@@ -110,8 +136,45 @@ static region_t *tree_find_region(const region_node_t *node, const void *ptr) {
 	default:
 		// shall not happen
 		assert(0);
+		return 0;
 	}
 }  // tree_find_region
+
+/** finds a subregion which contains one of the addresses in range; if multiple
+		such subregions exist, any one may be returned
+		@param node the region tree node in which to search for the subregion
+		@param ptr the pointer to the start of the range
+		@param nbytes the size of the range, in bytes
+		@returns the subregion if found and 0 if none
+ */
+static subreg_t *tree_find_region_subreg_in_range
+(const region_node_t *node, void *ptr, size_t nbytes) {
+	if(!node)
+		return 0;
+	memrange_t range = {ptr, nbytes}, node_range = node->region->range;
+	subreg_t *subreg;
+	switch(memrange_cmp(&range, &node_range)) {
+	case MR_CMP_LT:
+		return tree_find_region_subreg_in_range(node->left, ptr, nbytes);
+	case MR_CMP_GT:
+		return tree_find_region_subreg_in_range(node->right, ptr, nbytes);
+	case MR_CMP_EQ:
+		return region_find_subreg_in_range(node->region, ptr, nbytes);
+	case MR_CMP_INT:
+		subreg = region_find_subreg_in_range(node->region, ptr, nbytes);
+		if(subreg)
+			return subreg;
+		subreg = tree_find_region_subreg_in_range(node->left, ptr, nbytes);
+		if(subreg)
+			return subreg;
+		subreg = tree_find_region_subreg_in_range(node->right, ptr, nbytes);
+		return subreg;
+	default:
+		// shall not happen
+		assert(0);
+		return 0;
+	}
+}  // tree_find_region_in_range
 
 /** finds the minimum (leftmost) node in the tree; this may be the node itself */
 static region_node_t **tree_min_pnode(region_node_t **pnode) {
@@ -160,10 +223,16 @@ static void tree_remove_from_node
 			//fprintf(stderr, "right subnode=%p\n", node->right);
 			region_node_t **pmin_node = tree_min_pnode(&node->right);
 			region_node_t *min_node = *pmin_node;
-			//fprintf(stderr, "minimum subnode found, min_node=%p\n", *pmin_node);
-			node->region = min_node->region;
 			*pmin_node = min_node->right;
-			sfree(min_node);
+			min_node->left = node->left;
+			min_node->right = node->right;
+			*pnode = min_node;
+			//region_node_t *min_node = *pmin_node;
+			//fprintf(stderr, "minimum subnode found, min_node=%p\n", *pmin_node);
+			//node->region = min_node->region;
+			//*pmin_node = min_node->right;
+			//sfree(min_node);
+			sfree(node);
 		}
 	} else {
 		// remove from one of subnodes
@@ -299,7 +368,11 @@ void region_free(region_t *region) {
 	if(region->prot_status != (PROT_READ | PROT_WRITE))
 		region_unprotect(region);
 	//fprintf(stderr, "removing region from tree\n");
+	//fprintf(stderr, "region tree dump before removal:\n");
+  //tree_dump(region_tree_g, 0);
 	tree_remove(region);
+	//fprintf(stderr, "region tree dump after removal:\n");
+  //tree_dump(region_tree_g, 0);
 	if(region->subreg_list)
 		fprintf(stderr, "region_free: removing region with subregions\n");
 	//fprintf(stderr, "removing region semaphore\n");
@@ -310,8 +383,10 @@ void region_free(region_t *region) {
 
 int region_add_subreg(region_t *region, subreg_t *subreg) {
 	// check if subreg belongs to the region
-	if(!memrange_is_inside(&region->range, &subreg->range))
+	if(!memrange_is_inside(&region->range, &subreg->range)) {
+		fprintf(stderr, "subregion is not completely inside region\n");
 		return GPUVM_ERROR;
+	}
 	subreg_list_t *new_list = (subreg_list_t*)smalloc(sizeof(subreg_list_t));
 	if(!new_list) 
 		return GPUVM_ESALLOC;
@@ -325,8 +400,10 @@ int region_add_subreg(region_t *region, subreg_t *subreg) {
 		if(cmp_res == MR_CMP_LT) {
 			// insert position found
 			break;
-		} else if(cmp_res == MR_CMP_INT || cmp_res == MR_CMP_INT) {
+		} else if(cmp_res == MR_CMP_EQ || cmp_res == MR_CMP_INT) {
 			// error - ranges mustn't intersect
+			fprintf(stderr, "region_add_subreg: subregion intersects with one of " 
+							"subregions of the region");
 			sfree(new_list);
 			return GPUVM_ERANGE;
 		}
@@ -348,7 +425,7 @@ int region_remove_subreg(region_t *region, subreg_t *subreg) {
 			// remove subregion
 			subreg_list_t *next = (*plist)->next;
 			sfree(*plist);
-			(*plist) = next;
+			*plist = next;
 			region->nsubregs--;
 			break;
 		}
@@ -357,7 +434,17 @@ int region_remove_subreg(region_t *region, subreg_t *subreg) {
 }
 
 region_t *region_find_region(const void *ptr) {
-	return tree_find_region(region_tree_g, ptr);
+	//if((size_t)ptr == 0x2aaac1825020)
+	//fprintf(stderr, "region tree dump:\n");
+  //tree_dump(region_tree_g, 0);
+	//fprintf(stderr, "ptr = %p\n", ptr);
+	region_t *region = tree_find_region(region_tree_g, ptr);
+	//fprintf(stderr, "region = %p\n", region);
+	return region;
+}
+
+subreg_t *region_find_region_subreg_in_range(void *ptr, size_t nbytes) {
+	return tree_find_region_subreg_in_range(region_tree_g, ptr, nbytes);
 }
 
 subreg_t *region_find_subreg(const region_t *region, const void *ptr) {
@@ -369,6 +456,22 @@ subreg_t *region_find_subreg(const region_t *region, const void *ptr) {
 			return list->subreg;
 	return 0;
 }
+
+subreg_t *region_find_subreg_in_range
+(const region_t *region, void *ptr, size_t nbytes) {
+	memrange_t range = {ptr, nbytes};
+	int comp_res = memrange_cmp(&range, &region->range);
+	if(comp_res != MR_CMP_INT && comp_res != MR_CMP_EQ)
+		return 0;
+	subreg_list_t *list;
+	for(list = region->subreg_list; list; list = list->next) {
+		comp_res = memrange_cmp(&range, &list->subreg->range);
+		if(comp_res == MR_CMP_INT || comp_res == MR_CMP_EQ)
+			return list->subreg;
+	}
+	return 0;
+}
+
 
 int region_lock(region_t *region) {
 	// no-op - due to global lock 

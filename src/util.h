@@ -121,27 +121,14 @@ typedef enum {
 		@param b second memory range
 		@returns appropriate memrage_cmp_t code
  */
-static inline memrange_cmp_t memrange_cmp
-(const memrange_t* a, const memrange_t*	b) {
-	//fprintf(stderr, "comparing memory ranges a = %p and b = %p\n", a, b);
-	if((char*)a->ptr + a->nbytes <= (char*)b->ptr)
-		return MR_CMP_LT;
-	if((char*)b->ptr + b->nbytes <= (char*)a->ptr)
-		return MR_CMP_GT;
-	if(a->ptr == b->ptr && a->nbytes == b->nbytes)
-		return MR_CMP_EQ;
-	return MR_CMP_INT;
-}
+memrange_cmp_t memrange_cmp(const memrange_t* a, const memrange_t*	b); 
 
 /** checks whether the second memrange is inside the first memrange 
 		@param a the first memrange
 		@param b the second memrange
 		@returns nonzero value if it is and 0 if not
  */
-static inline int memrange_is_inside(const memrange_t* a, const memrange_t* b) {
-	return (char*)a->ptr <= (char*)b->ptr && 
-		(char*)a->ptr + a->nbytes >= (char*)b->ptr + b->nbytes;
-}
+int memrange_is_inside(const memrange_t* a, const memrange_t* b);
 
 /** gets pointer position relative to the range 
 		@param range memory range
@@ -149,15 +136,7 @@ static inline int memrange_is_inside(const memrange_t* a, const memrange_t* b) {
 		@returns ::MR_CMP_LT if pointer lies before the range, ::MR_CMP_INT if it lies inside
 		the range and ::MR_CMP_GT if it lies after the range
  */
-static inline memrange_cmp_t memrange_pos_ptr(const memrange_t* range, const void *aptr)
-{
-	if((char*)aptr < (char*)range->ptr)
-		return MR_CMP_LT;
-	else if((char*)aptr < (char*)range->ptr + range->nbytes)
-		return MR_CMP_INT;
-	else
-		return MR_CMP_GT;
-}
+memrange_cmp_t memrange_pos_ptr(const memrange_t* range, const void *aptr);
 
 /** @} */
 

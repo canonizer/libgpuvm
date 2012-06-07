@@ -135,7 +135,9 @@ int gpuvm_init(unsigned ndevs, void **devs, int flags) {
 	return 0;
 }  // gpuvm_init
 
-int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int flags) {
+int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int
+flags) {
+	//fprintf(stderr, "linking\n");
 	// check arguments
 	if(!hostptr) {
 		fprintf(stderr, "gpuvm_link: hostptr is NULL\n");
@@ -180,8 +182,8 @@ int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int fl
 			return GPUVM_ELINK;
 		}
 		if(flags & GPUVM_ON_DEVICE) {
-			fprintf(stderr, "gpuvm_link: on-device linking of a registered " 
-							"array is not allowed\n");
+			//fprintf(stderr, "gpuvm_link: on-device linking of a registered " 
+			//				"array is not allowed\n");
 			unlock_writer();
 			return GPUVM_ETWICE;
 		}
@@ -215,7 +217,7 @@ int gpuvm_link(void *hostptr, size_t nbytes, unsigned idev, void *devbuf, int fl
 
 	if(unlock_writer())
 		return GPUVM_ERROR;
-	//fprintf(stderr, "gpuvm linked\n");
+	//fprintf(stderr, "hostptr %p registered with libgpuvm\n", hostptr);
 	return 0;
 }  // gpuvm_link
 
@@ -230,8 +232,7 @@ static int gpuvm_pre_unlink(void *hostptr) {
 		return GPUVM_ERROR;
 
 	// get the array
-	host_array_t *host_array = 0;
-	host_array_find(&host_array, hostptr, 0);
+	host_array_t *host_array = host_array_find_by_ptr(hostptr);
 	if(!host_array) {
 		unlock_reader();
 		fprintf(stderr, "gpuvm_pre_unlink: not a valid pointer\n");
@@ -251,6 +252,7 @@ static int gpuvm_pre_unlink(void *hostptr) {
 }  // gpuvm_pre_unlink()
 
 int gpuvm_unlink(void *hostptr, unsigned idev) {
+	//fprintf(stderr, "unlinking\n");
 	// check arguments
 	if(idev >= ndevs_g) {
 		fprintf(stderr, "gpuvm_unlink: invalid device number\n");
@@ -264,13 +266,13 @@ int gpuvm_unlink(void *hostptr, unsigned idev) {
 		// make array to be synced to host and unprotected
 		gpuvm_pre_unlink(hostptr);
 	}
-
+	//fprintf(stderr, "synced back\n");
 	if(lock_writer())
 		return GPUVM_ERROR;
 
 	//fprintf(stderr, "finding host array\n");
-	host_array_t *host_array;
-	int err = host_array_find(&host_array, hostptr, 0);
+	host_array_t *host_array = host_array_find_by_ptr(hostptr);
+	//fprintf(stderr, "found host array\n");
 	if(!host_array) {
 		unlock_writer();
 		fprintf(stderr, "gpuvm_unlink: not a valid pointer\n");
@@ -278,23 +280,27 @@ int gpuvm_unlink(void *hostptr, unsigned idev) {
 	}
 
 	//fprintf(stderr, "removing link\n");
+	int err;
 	if(err = host_array_remove_link(host_array, idev)) {
 		unlock_writer();
 		return err;
 	}
-
+	//fprintf(stderr, "removed link on device\n");
 	//fprintf(stderr, "freeing host array\n");
-	if(!host_array_has_links(host_array))
+	if(!host_array_has_links(host_array)) {
 		host_array_free(host_array);
+		//fprintf(stderr, "removed host array\n");
+	}
 
 	//fprintf(stderr, "finished unlinking\n");
 	if(unlock_writer())
 		return GPUVM_ERROR;
-
+	//fprintf(stderr, "unlinked\n");
 	return 0;
 }  // gpuvm_unlink
 
 void *gpuvm_xlate(void *hostptr, unsigned idev) {
+	//fprintf(stderr, "xlating\n");
 	// check arguments
 	if(!hostptr || idev >= ndevs_g)
 		return 0;
@@ -304,9 +310,8 @@ void *gpuvm_xlate(void *hostptr, unsigned idev) {
 		return 0;
 
 	// find host array and device buffer
-	host_array_t *host_array;
 	void *dev_buffer = 0;
-	int err = host_array_find(&host_array, hostptr, 0);
+	host_array_t *host_array = host_array_find_by_ptr(hostptr);
 	if(host_array && host_array->links[idev])
 		dev_buffer = host_array->links[idev]->buf;
 	
@@ -317,6 +322,7 @@ void *gpuvm_xlate(void *hostptr, unsigned idev) {
 }  // gpuvm_xlate
 
 int gpuvm_kernel_begin(void *hostptr, unsigned idev, int flags) {
+	//fprintf(stderr, "beginning kernel\n");
 	// check arguments
 	if(!hostptr) {
 		fprintf(stderr, "gpuvm_kernel_begin: hostptr is NULL\n");
@@ -335,10 +341,10 @@ int gpuvm_kernel_begin(void *hostptr, unsigned idev, int flags) {
 		return GPUVM_ERROR;
 
 	// find host array
-	host_array_t *host_array;
-	host_array_find(&host_array, hostptr, 0);
+	host_array_t *host_array = host_array_find_by_ptr(hostptr);
 	if(!host_array) {
-		fprintf(stderr, "gpuvm_kernel_begin: hostptr is not registed with GPUVM\n");
+		fprintf(stderr, "gpuvm_kernel_begin: hostptr %p is not registed with "
+						"GPUVM\n", hostptr);
 		unlock_reader();
 		return GPUVM_EHOSTPTR;
 	}
@@ -357,6 +363,7 @@ int gpuvm_kernel_begin(void *hostptr, unsigned idev, int flags) {
 }  // gpuvm_kernel_begin
 
 int gpuvm_kernel_end(void *hostptr, unsigned idev) {
+	//fprintf(stderr, "ending kernel\n");
 	// check arguments
 	if(!hostptr) {
 		fprintf(stderr, "gpuvm_kernel_end: hostptr is NULL");
@@ -372,8 +379,7 @@ int gpuvm_kernel_end(void *hostptr, unsigned idev) {
 		return GPUVM_ERROR;
 
 	// find host array
-	host_array_t *host_array;
-	host_array_find(&host_array, hostptr, 0);
+	host_array_t *host_array = host_array_find_by_ptr(hostptr);
 	if(!host_array) {
 		fprintf(stderr, "gpuvm_kernel_begin: hostptr is not registed with GPUVM\n");
 		unlock_writer();
@@ -390,6 +396,6 @@ int gpuvm_kernel_end(void *hostptr, unsigned idev) {
 	// lock for writer
 	if(unlock_writer())
 		return GPUVM_ERROR;
-
+	//fprintf(stderr, "kernel ended\n");
 	return 0;
 } // gpuvm_kernel_end
