@@ -21,7 +21,7 @@ int sync_init(void) {
 		fprintf(stderr, "sync_init: can\'t init rwlock\n");
 		return GPUVM_ERROR;
 	}
-	sigfillset(&writer_block_sig_g);
+	sigemptyset(&writer_block_sig_g);
 	sigaddset(&writer_block_sig_g, SIG_MONOGC_SUSPEND);
 #ifndef __APPLE__
 	sigaddset(&writer_block_sig_g, SIG_SUSP);

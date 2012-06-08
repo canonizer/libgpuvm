@@ -8,6 +8,6 @@ ENABLE_CUDA=n
 CUDA_INSTALL_PATH=/usr/local/cuda
 
 # installation settings
-PREFIX=/export/usr
-LIB_PREFIX=$(PREFIX)/lib64
+PREFIX=/usr
+LIB_PREFIX=$(PREFIX)/lib
 HEADER_PREFIX=$(PREFIX)/include

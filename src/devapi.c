@@ -19,7 +19,7 @@ sigset_t devapi_block_sig_g;
 
 int devapi_init(int flags) {
 	sigemptyset(&devapi_block_sig_g);
-	sigaddset(&devapi_block_sig_g, SIG_MONOGC_SUSPEND);
+	//sigaddset(&devapi_block_sig_g, SIG_MONOGC_SUSPEND);
 #ifndef __APPLE__
 	sigaddset(&devapi_block_sig_g, SIG_SUSP);
 #endif
@@ -52,37 +52,38 @@ int devapi_init(int flags) {
 int memcpy_h2d
 (devapi_t *devapi, unsigned idev, void *tgt, void *src, size_t nbytes, 
  size_t devoff) {
-	//sigprocmask(SIG_BLOCK, &devapi_block_sig_g, 0);
 	// time API call
 	rtime_t start_time, end_time;
 	if(stat_enabled()) 
 		start_time = rtime_get();
+	sigprocmask(SIG_BLOCK, &devapi_block_sig_g, 0);
 
 	int err = devapi->memcpy_h2d(idev, tgt, src, nbytes, devoff);
-	
+
+	sigprocmask(SIG_UNBLOCK, &devapi_block_sig_g, 0);
 	if(stat_enabled()) {
 		end_time = rtime_get();
 		stat_acc_double(GPUVM_STAT_HOST_COPY_TIME, rtime_diff(&start_time, &end_time));
 	}
-	//sigprocmask(SIG_UNBLOCK, &devapi_block_sig_g, 0);
 	return err;
 }  // memcpy_h2d
 
 int memcpy_d2h
 (devapi_t *devapi, unsigned idev, void *tgt, void *src, size_t nbytes, 
  size_t devoff) {
-	//sigprocmask(SIG_BLOCK, &devapi_block_sig_g, 0);
 	// time API call
 	rtime_t start_time, end_time;
 	if(stat_enabled()) 
 		start_time = rtime_get();
+	sigprocmask(SIG_BLOCK, &devapi_block_sig_g, 0);
 
 	int err = devapi->memcpy_d2h(idev, tgt, src, nbytes, devoff);
 	
+	sigprocmask(SIG_UNBLOCK, &devapi_block_sig_g, 0);
+
 	if(stat_enabled()) {
 		end_time = rtime_get();
 		stat_acc_double(GPUVM_STAT_HOST_COPY_TIME, rtime_diff(&start_time, &end_time));
 	}
-	//sigprocmask(SIG_UNBLOCK, &devapi_block_sig_g, 0);
 	return err;
 }  // memcpy_d2h
